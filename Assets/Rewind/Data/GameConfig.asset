@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5db9e1d896f30414e911cfe85cdebe76, type: 3}
+  m_Name: GameConfig
+  m_EditorClassIdentifier: Rewind.Data::Rewind.Data.GameConfig
+  tickSeconds: 0.125
+  loopSeconds: 10
+  repeatDelayTicks: 2
+  inputQueueLimit: 3
+  moveAnimSeconds: 0.1
+  rewindSpeed: 5
+  minRewindSeconds: 0.5
+  maxRewindSeconds: 1.8
+  previewTicks: 16
+  warningSeconds: 3

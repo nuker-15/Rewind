@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a0185ee5af634d246ae2c5e388aaaf91, type: 3}
+  m_Name: LevelCatalog
+  m_EditorClassIdentifier: Rewind.Data::Rewind.Data.LevelCatalog
+  levels:
+  - {fileID: 11400000, guid: a5e0beb4b34ebd74fa2a8cc13b857032, type: 2}
+  - {fileID: 11400000, guid: 4a7ff1a2b4af5694ebb3823c898fdb15, type: 2}
+  - {fileID: 11400000, guid: 72b768a9120658540a2148baa75f7d94, type: 2}
+  - {fileID: 11400000, guid: 5c0c4f2ccb857314aa36671e47dca95c, type: 2}
+  - {fileID: 11400000, guid: 8436002da8bcc5547bcde2332a1bdd3b, type: 2}
+  - {fileID: 11400000, guid: 1debe9fc68ab4e94bbf9f20ba3b0e4f6, type: 2}
+  - {fileID: 11400000, guid: fc5fbce8ef5af1a4da35b822f23e3fb7, type: 2}
+  - {fileID: 11400000, guid: cb68f9e5f3aa2f54783df791d731eef2, type: 2}
+  - {fileID: 11400000, guid: 5be61014f459c144f8ebbf61bea32eb0, type: 2}

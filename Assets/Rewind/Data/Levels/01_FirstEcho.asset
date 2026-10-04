@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: decefa1f7a0e27f47ba1e327afb930ca, type: 3}
+  m_Name: 01_FirstEcho
+  m_EditorClassIdentifier: Rewind.Data::Rewind.Data.LevelData
+  displayName: First Echo
+  par: 2
+  hint: The door is only open while someone stands on the plate. Step onto it, then
+    press Space to end the loop. Next loop, your echo holds the plate for you.
+  map: '###########
+
+    #S..#.....#
+
+    #...#.....#
+
+    #.1.a...X.#
+
+    #...#.....#
+
+    ###########'
+  referenceSolution:
+  - RDD
+  - RRDDRRRRR

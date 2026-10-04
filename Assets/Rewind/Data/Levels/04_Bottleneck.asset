@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: decefa1f7a0e27f47ba1e327afb930ca, type: 3}
+  m_Name: 04_Bottleneck
+  m_EditorClassIdentifier: Rewind.Data::Rewind.Data.LevelData
+  displayName: Bottleneck
+  par: 2
+  hint: The corridor is one tile wide. Push the crate in while your echo still needs
+    that space and you erase your own past. Watch its trail and time it.
+  map: '##############
+
+    #....#####...#
+
+    #S.o...1.....#
+
+    #....#####.2.#
+
+    #....#####...#
+
+    ###a##########
+
+    ###b..X#######
+
+    ##############'
+  referenceSolution:
+  - URRRDRRRRRRRD
+  - R....RRRRLLLDDDDRRR

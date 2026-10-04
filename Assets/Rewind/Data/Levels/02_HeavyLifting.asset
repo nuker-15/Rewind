@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: decefa1f7a0e27f47ba1e327afb930ca, type: 3}
+  m_Name: 02_HeavyLifting
+  m_EditorClassIdentifier: Rewind.Data::Rewind.Data.LevelData
+  displayName: Heavy Lifting
+  par: 2
+  hint: Crates hold plates down too. Your echo walks through that door expecting
+    it open. Knock the crate off the plate first and the door shuts on your own past.
+  map: '#############
+
+    #S....#.....#
+
+    #..o..a..2..#
+
+    #.....#.....#
+
+    #..1..###b###
+
+    #.....#.....#
+
+    #.....#..X..#
+
+    #############'
+  referenceSolution:
+  - RRDDRRURRRR
+  - RRRRDRRRRD.DDD

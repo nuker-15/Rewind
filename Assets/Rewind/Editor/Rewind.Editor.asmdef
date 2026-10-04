@@ -1,0 +1,24 @@
+{
+    "name": "Rewind.Editor",
+    "rootNamespace": "Rewind.EditorTools",
+    "references": [
+        "Rewind.Core",
+        "Rewind.Data",
+        "Rewind.Gameplay",
+        "Rewind.UI",
+        "Unity.InputSystem",
+        "Unity.TextMeshPro",
+        "UnityEngine.UI"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
