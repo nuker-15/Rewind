@@ -5,7 +5,7 @@ using UnityEngine.InputSystem;
 
 namespace Rewind.UI
 {
-    /// <summary>Keys that work everywhere: back/menu, hint, fullscreen and mute. Bindings live in the input actions asset.</summary>
+    /// <summary>Keys that work everywhere: back/menu, pause, fullscreen and mute. Bindings live in the input actions asset.</summary>
     public sealed class ShellInput : MonoBehaviour
     {
         [SerializeField] UIRouter router;
@@ -13,7 +13,6 @@ namespace Rewind.UI
         [SerializeField] string mapName = "Shell";
         [SerializeField] string back = "Back";
         [SerializeField] string pause = "Pause";
-        [SerializeField] string hint = "Hint";
         [SerializeField] string fullscreen = "Fullscreen";
         [SerializeField] string mute = "Mute";
 
@@ -32,7 +31,6 @@ namespace Rewind.UI
             }
             Hook(back, router.HandleBack);
             Hook(pause, router.TogglePause);
-            Hook(hint, router.ShowHint);
             Hook(fullscreen, router.ToggleFullscreen);
             Hook(mute, router.ToggleMute);
             map.Enable();

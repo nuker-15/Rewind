@@ -8,6 +8,9 @@ namespace Rewind.UI
     /// Draws one loop as a tape track: a faint bar for its length, a block for every tick it moved, and a cut with a
     /// cross where it vanished.
     /// </summary>
+    // Graphic only requires a RectTransform. In the Editor its lazy CanvasRenderer lookup is fooled by Unity's
+    // "fake null" from GetComponent, so without this the graphic is silently never rebuilt and draws nothing.
+    [RequireComponent(typeof(CanvasRenderer))]
     public sealed class TimelineTrackGraphic : MaskableGraphic
     {
         [SerializeField, Range(0f, 1f)] float baseAlpha = 0.2f;

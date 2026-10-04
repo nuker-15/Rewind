@@ -21,7 +21,6 @@ namespace Rewind.UI
         [SerializeField] HudScreen hud;
 
         [Header("Overlays")]
-        [SerializeField] IntroPanel intro;
         [SerializeField] PausePanel pause;
         [SerializeField] SolvedPanel solved;
         [SerializeField] HowToPlayPanel howTo;
@@ -33,7 +32,7 @@ namespace Rewind.UI
         public RewindGame Game => game;
         /// <summary>The tape played most recently, so the shelf can reselect it.</summary>
         public int LastPlayedIndex { get; private set; } = -1;
-        public bool AnyOverlayOpen => Is(intro) || Is(pause) || Is(solved) || Is(howTo);
+        public bool AnyOverlayOpen => Is(pause) || Is(solved) || Is(howTo);
         public bool InGame => game && game.HasLevel && Is(hud);
 
         static bool Is(UIScreen s) => s && s.IsOpen;
@@ -120,20 +119,6 @@ namespace Rewind.UI
 
         // ---- In game ---------------------------------------------------------------------------
 
-        public void ShowHint()
-        {
-            if (!InGame || AnyOverlayOpen) return;
-            OpenIntro(true);
-        }
-
-        public void CloseIntro()
-        {
-            if (!Is(intro)) return;
-            overlayClosedFrame = Time.frameCount;
-            Close(intro);
-            UnlockNextFrame();
-        }
-
         public void OpenPause()
         {
             if (!InGame || AnyOverlayOpen) return;
@@ -158,8 +143,6 @@ namespace Rewind.UI
         }
 
         public void RetryLoop() { ClosePause(); Close(solved); game.RetryLoop(); UnlockNextFrame(); }
-        public void EraseLastEcho() { ClosePause(); game.EraseLastEcho(); }
-        public void RestartLevel() { ClosePause(); game.RestartLevel(); }
 
         public void NextLevel()
         {
@@ -170,10 +153,9 @@ namespace Rewind.UI
         /// <summary>What Escape does depends on what is showing.</summary>
         public void HandleBack()
         {
-            // the same key press may already have closed an overlay this frame (e.g. the intro's "any key")
+            // the same key press may already have closed an overlay this frame
             if (Time.frameCount == overlayClosedFrame) return;
             if (Is(howTo)) CloseHowTo();
-            else if (Is(intro)) CloseIntro();
             else if (Is(pause)) ClosePause();
             else if (Is(solved)) ShowLevelSelect();
             else if (InGame) OpenPause();
@@ -189,7 +171,8 @@ namespace Rewind.UI
             Close(levelSelect);
             CloseOverlays();
             Open(hud);
-            OpenIntro(false);
+            // The title / level select screens lock input; release it now that the board is live.
+            UnlockNextFrame();
         }
 
         void OnSolved(SolveResult result)
@@ -202,17 +185,8 @@ namespace Rewind.UI
 
         // ---- Helpers --------------------------------------------------------------------------------
 
-        void OpenIntro(bool asHint)
-        {
-            if (!intro) return;
-            intro.Configure(game.CurrentLevel, game.LevelIndex, game.Catalog ? game.Catalog.Count : 0, asHint);
-            Open(intro);
-            LockInput();
-        }
-
         void CloseOverlays()
         {
-            Close(intro);
             Close(pause);
             Close(solved);
             Close(howTo);

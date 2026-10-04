@@ -167,7 +167,6 @@ namespace Rewind.EditorTools
                 var shell = asset.AddActionMap("Shell");
                 AddButton(shell, "Back", "<Keyboard>/escape", "<Gamepad>/buttonEast");
                 AddButton(shell, "Pause", "<Keyboard>/p", "<Gamepad>/start");
-                AddButton(shell, "Hint", "<Keyboard>/h", "<Gamepad>/select");
                 AddButton(shell, "Fullscreen", "<Keyboard>/f", "<Keyboard>/f11");
                 AddButton(shell, "Mute", "<Keyboard>/m");
 

@@ -380,15 +380,6 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "Hint",
-                    "type": "Button",
-                    "id": "08a45ad6-88f9-49b8-9850-528ee0734a29",
-                    "expectedControlType": "",
-                    "processors": "",
-                    "interactions": "",
-                    "initialStateCheck": false
-                },
-                {
                     "name": "Fullscreen",
                     "type": "Button",
                     "id": "cec49c29-7ff8-4307-bea8-0e71d3eccd86",
@@ -449,28 +440,6 @@
                     "processors": "",
                     "groups": "",
                     "action": "Pause",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
-                    "id": "61b83488-82ba-44c1-be1d-2ebe1f11dab4",
-                    "path": "<Keyboard>/h",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Hint",
-                    "isComposite": false,
-                    "isPartOfComposite": false
-                },
-                {
-                    "name": "",
-                    "id": "ed2e8bfa-8b39-440f-8bde-31091520eea3",
-                    "path": "<Gamepad>/select",
-                    "interactions": "",
-                    "processors": "",
-                    "groups": "",
-                    "action": "Hint",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },

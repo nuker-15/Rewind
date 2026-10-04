@@ -35,7 +35,7 @@ namespace Rewind.EditorTools
 
         static class Screens
         {
-            public static GameObject Title, LevelSelect, Hud, Intro, Pause, Solved, HowTo, Root;
+            public static GameObject Title, LevelSelect, Hud, Pause, Solved, HowTo, Root;
         }
 
         static TMP_FontAsset font;
@@ -50,7 +50,6 @@ namespace Rewind.EditorTools
             Screens.Title = BuildScreen("TitleScreen", BuildTitle);
             Screens.LevelSelect = BuildScreen("LevelSelectScreen", BuildLevelSelect);
             Screens.Hud = BuildScreen("HudScreen", BuildHud);
-            Screens.Intro = BuildScreen("IntroPanel", BuildIntro);
             Screens.Pause = BuildScreen("PausePanel", BuildPause);
             Screens.Solved = BuildScreen("SolvedPanel", BuildSolved);
             Screens.HowTo = BuildScreen("HowToPlayPanel", BuildHowTo);
@@ -326,7 +325,6 @@ namespace Rewind.EditorTools
             var left = Row(root, "Status", new Vector2(0, 1), new Vector2(0, 0.5f), new Vector2(36, -50), 16);
             var statusIcon = Img(Fixed(UI("StatusIcon", left), 34, 34), Art.Circle, UIColor.Rec);
             var statusLabel = Txt(UI("StatusLabel", left), "READY", 44, UIColor.Fg, TextAlignmentOptions.MidlineLeft);
-            var loopLabel = Txt(UI("LoopLabel", left), "LOOP 01", 44, UIColor.Fg, TextAlignmentOptions.MidlineLeft);
             var parLabel = Txt(UI("ParLabel", left), "PAR 2", 32, UIColor.Muted, TextAlignmentOptions.MidlineLeft);
 
             var centre = Row(root, "Tape", new Vector2(0.5f, 1), new Vector2(0.5f, 0.5f), new Vector2(0, -50), 14);
@@ -336,7 +334,6 @@ namespace Rewind.EditorTools
             var right = Row(root, "Clock", new Vector2(1, 1), new Vector2(1, 0.5f), new Vector2(-32, -50), 10);
             var timeLabel = Txt(UI("TimeLabel", right), "0:00.0", 52, UIColor.Fg, TextAlignmentOptions.MidlineRight);
             Fixed(UI("Gap", right), 8, 8);
-            var hint = IconButton(right, "Hint", null, "?");
             var sound = IconButton(right, "Sound", Art.IconSound, "");
             var fullscreen = IconButton(right, "Fullscreen", Art.IconFullscreen, "");
             var pause = IconButton(right, "Pause", Art.IconPause, "");
@@ -404,7 +401,7 @@ namespace Rewind.EditorTools
             Set(timeline, "playheadGraphic", playheadImage);
 
             var keys = Txt(Place(UI("KeyHints", root), new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 14), new Vector2(1600, 34)),
-                "ARROWS MOVE   ·   SPACE END LOOP   ·   R RETRY   ·   Z ERASE ECHO   ·   H HINT   ·   ESC MENU", 22, UIColor.Muted, TextAlignmentOptions.Center);
+                "ARROWS MOVE   ·   SPACE END LOOP   ·   R RETRY   ·   Z ERASE ECHO   ·   ESC MENU", 22, UIColor.Muted, TextAlignmentOptions.Center);
 
             // touch controls, hidden unless a touchscreen is present
             var touchRt = Stretch(UI("TouchControls", root));
@@ -445,13 +442,11 @@ namespace Rewind.EditorTools
             Set(screen, "readySprite", Art.IconPause);
             Set(screen, "rewindSprite", Art.IconRewind);
             Set(screen, "stopSprite", Art.IconStop);
-            Set(screen, "loopLabel", loopLabel);
             Set(screen, "parLabel", parLabel);
             Set(screen, "tapeLabel", tapeLabel);
             Set(screen, "nameLabel", nameLabel);
             Set(screen, "timeLabel", timeLabel);
             Set(screen, "textColor", UIColor.Fg);
-            Set(screen, "hintButton", hint);
             Set(screen, "soundButton", sound);
             Set(screen, "fullscreenButton", fullscreen);
             Set(screen, "pauseButton", pause);
@@ -467,52 +462,23 @@ namespace Rewind.EditorTools
             Set(screen, "touchControls", touch);
         }
 
-        static void BuildIntro(RectTransform root)
-        {
-            var screen = root.gameObject.AddComponent<IntroPanel>();
-            Img(Stretch(UI("Dim", root)), Art.Square, Clear(UIColor.Ink, 0.62f), raycast: true);
-            var card = Card(root, new Vector2(920, 440), UIColor.Rec);
-            var tape = Txt(Place(UI("Tape", card), new Vector2(0, 1), new Vector2(0, 0.5f), new Vector2(52, -52), new Vector2(800, 40)), "TAPE 01 OF 09", 30, UIColor.Rec, TextAlignmentOptions.MidlineLeft);
-            var name = Txt(Place(UI("Name", card), new Vector2(0, 1), new Vector2(0, 0.5f), new Vector2(50, -118), new Vector2(820, 96)), "FIRST ECHO", 84, UIColor.Fg, TextAlignmentOptions.MidlineLeft);
-            var hint = Txt(Place(UI("Hint", card), new Vector2(0, 1), new Vector2(0, 1), new Vector2(52, -178), new Vector2(816, 160)), "Hint text", 26, UIColor.Fg, TextAlignmentOptions.TopLeft, FontStyles.Normal, wrap: true);
-            var par = Txt(Place(UI("Par", card), new Vector2(0, 0), new Vector2(0, 0.5f), new Vector2(52, 46), new Vector2(560, 40)), "PAR 2 LOOPS", 26, UIColor.Muted, TextAlignmentOptions.MidlineLeft);
-            var prompt = Txt(Place(UI("Prompt", card), new Vector2(1, 0), new Vector2(1, 0.5f), new Vector2(-52, 46), new Vector2(420, 40)), "PRESS ANY KEY", 26, UIColor.Fg, TextAlignmentOptions.MidlineRight);
-            prompt.gameObject.AddComponent<CanvasGroup>();
-            prompt.gameObject.AddComponent<Blink>();
-            Set(screen, "tapeLabel", tape);
-            Set(screen, "nameLabel", name);
-            Set(screen, "hintLabel", hint);
-            Set(screen, "parLabel", par);
-            Set(screen, "promptLabel", prompt);
-        }
-
         static void BuildPause(RectTransform root)
         {
             var screen = root.gameObject.AddComponent<PausePanel>();
             Img(Stretch(UI("Dim", root)), Art.Square, Clear(UIColor.Ink, 0.7f), raycast: true);
-            var card = Card(root, new Vector2(580, 640), UIColor.Line);
+            var card = Card(root, new Vector2(580, 392), UIColor.Line);
             Txt(Place(UI("Title", card), new Vector2(0.5f, 1), new Vector2(0.5f, 0.5f), new Vector2(0, -56), new Vector2(500, 70)), "PAUSED", 56, UIColor.Fg, TextAlignmentOptions.Center);
             var menu = MenuColumn(card, Vector2.zero, 500);
             Place(menu, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -104), new Vector2(500, 0));
             var resume = AddMenuButton(menu, "RESUME", "ESC");
-            var retry = AddMenuButton(menu, "RETRY THIS LOOP", "R");
-            var erase = AddMenuButton(menu, "ERASE LAST ECHO", "Z");
-            var restart = AddMenuButton(menu, "RESTART TAPE", "");
-            var hint = AddMenuButton(menu, "SHOW HINT", "H");
             var howTo = AddMenuButton(menu, "HOW TO PLAY", "");
             var select = AddMenuButton(menu, "SELECT TAPE", "");
             var title = AddMenuButton(menu, "TITLE SCREEN", "");
-            var footer = Txt(Place(UI("Footer", card), new Vector2(0.5f, 0), new Vector2(0.5f, 0.5f), new Vector2(0, 30), new Vector2(500, 30)), "TAPE 01  FIRST ECHO", 22, UIColor.Muted, TextAlignmentOptions.Center);
             Set(screen, "firstSelected", resume.Button);
             Set(screen, "resume", resume);
-            Set(screen, "retry", retry);
-            Set(screen, "erase", erase);
-            Set(screen, "restart", restart);
-            Set(screen, "hint", hint);
             Set(screen, "howTo", howTo);
             Set(screen, "levelSelect", select);
             Set(screen, "title", title);
-            Set(screen, "footer", footer);
         }
 
         static void BuildSolved(RectTransform root)
@@ -617,7 +583,7 @@ namespace Rewind.EditorTools
             });
 
             Txt(Place(UI("Controls", card), new Vector2(0, 0), new Vector2(0, 0), new Vector2(60, 40), new Vector2(1440, 64)),
-                "ARROWS / WASD move   ·   SPACE end loop early   ·   R retry loop   ·   Z erase last echo   ·   H hint   ·   ESC menu   ·   F fullscreen   ·   M sound",
+                "ARROWS / WASD move   ·   SPACE end loop early   ·   R retry loop   ·   Z erase last echo   ·   ESC menu   ·   F fullscreen   ·   M sound",
                 22, UIColor.Muted, TextAlignmentOptions.BottomLeft, FontStyles.Normal, wrap: true);
             Set(screen, "back", back);
             Set(screen, "firstSelected", back.Button);
@@ -658,12 +624,11 @@ namespace Rewind.EditorTools
                 var hud = Nest<HudScreen>(Screens.Hud, root, false);
                 var title = Nest<TitleScreen>(Screens.Title, root, true);
                 var select = Nest<LevelSelectScreen>(Screens.LevelSelect, root, false);
-                var intro = Nest<IntroPanel>(Screens.Intro, root, false);
                 var pause = Nest<PausePanel>(Screens.Pause, root, false);
                 var solved = Nest<SolvedPanel>(Screens.Solved, root, false);
                 var howTo = Nest<HowToPlayPanel>(Screens.HowTo, root, false);
 
-                foreach (var s in new UIScreen[] { hud, title, select, intro, pause, solved, howTo }) Set(s, "router", router);
+                foreach (var s in new UIScreen[] { hud, title, select, pause, solved, howTo }) Set(s, "router", router);
                 foreach (var t in hud.GetComponentsInChildren<TimelineView>(true)) Set(t, "router", router);
                 foreach (var t in hud.GetComponentsInChildren<TouchControls>(true)) Set(t, "router", router);
                 foreach (var h in hud.GetComponentsInChildren<HoldButton>(true)) Set(h, "router", router);
@@ -671,7 +636,6 @@ namespace Rewind.EditorTools
                 Set(router, "title", title);
                 Set(router, "levelSelect", select);
                 Set(router, "hud", hud);
-                Set(router, "intro", intro);
                 Set(router, "pause", pause);
                 Set(router, "solved", solved);
                 Set(router, "howTo", howTo);
