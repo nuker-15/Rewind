@@ -4,7 +4,10 @@ using UnityEngine.UI;
 
 namespace Rewind.UI
 {
-    /// <summary>On-screen d-pad and loop buttons, shown only when a touchscreen is present (or when forced).</summary>
+    /// <summary>
+    /// On-screen d-pad and loop buttons, shown only on mobile devices that have a touchscreen (or when forced).
+    /// A touchscreen alone is not enough: WebGL builds report one in desktop browsers too.
+    /// </summary>
     public sealed class TouchControls : MonoBehaviour
     {
         [SerializeField] UIRouter router;
@@ -14,7 +17,7 @@ namespace Rewind.UI
         [SerializeField] Button erase;
         [SerializeField] bool forceVisible;
 
-        public bool Visible => forceVisible || Touchscreen.current != null;
+        public bool Visible => forceVisible || (Application.isMobilePlatform && Touchscreen.current != null);
 
         void Awake()
         {
