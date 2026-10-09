@@ -33,6 +33,7 @@ namespace Rewind.EditorTools
             EditorGUILayout.HelpBox(LevelData.MapLegend, MessageType.None);
 
             EditorGUILayout.Space(4);
+            if (GUILayout.Button("Open in Level Editor")) LevelEditorWindow.OpenWith(level);
             if (GUILayout.Button("Validate level"))
             {
                 validationOk = LevelValidator.Validate(level, LevelValidator.FindLoopTicks(), true, out validation);
@@ -58,7 +59,7 @@ namespace Rewind.EditorTools
 
         static Color Channel(char c) => c switch { '1' or 'a' or 'A' => Amber, '2' or 'b' or 'B' => Cyan, _ => Orange };
 
-        static Color CellColor(char c, int x, int y)
+        internal static Color CellColor(char c, int x, int y)
         {
             switch (c)
             {
