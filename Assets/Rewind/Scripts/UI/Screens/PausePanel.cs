@@ -16,5 +16,10 @@ namespace Rewind.UI
             if (levelSelect) levelSelect.Button.onClick.AddListener(() => router.ShowLevelSelect());
             if (title) title.Button.onClick.AddListener(() => router.ShowTitle());
         }
+
+        protected override void OnOpened()
+        {
+            if (levelSelect) levelSelect.Label = router.TestingCustomLevel ? "BACK TO EDITOR" : "SELECT TAPE";
+        }
     }
 }

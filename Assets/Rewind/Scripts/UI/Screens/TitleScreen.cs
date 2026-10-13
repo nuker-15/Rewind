@@ -12,10 +12,22 @@ namespace Rewind.UI
         [SerializeField] MenuButton fullscreenButton;
         [SerializeField] MenuButton soundButton;
         [SerializeField] MenuButton quitButton;
+        [SerializeField, Tooltip("Optional. When empty, a copy of the tape button is added under it.")] MenuButton editorButton;
         [SerializeField] TMP_Text progressLabel;
 
         void Awake()
         {
+            // the level editor entry is made from the tape button, so the title prefab needs no changes
+            if (!editorButton && selectButton)
+            {
+                editorButton = Instantiate(selectButton, selectButton.transform.parent);
+                editorButton.transform.SetSiblingIndex(selectButton.transform.GetSiblingIndex() + 1);
+                editorButton.name = "LEVEL EDITOR";
+                editorButton.Label = "LEVEL EDITOR";
+                editorButton.KeyHint = "";
+            }
+            if (editorButton) editorButton.Button.onClick.AddListener(() => router.OpenEditor());
+
             if (continueButton) continueButton.Button.onClick.AddListener(() => router.Continue());
             if (selectButton) selectButton.Button.onClick.AddListener(() => router.ShowLevelSelect());
             if (howToButton) howToButton.Button.onClick.AddListener(() => router.OpenHowTo());

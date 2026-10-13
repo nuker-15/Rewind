@@ -48,7 +48,8 @@ namespace Rewind.UI
         {
             var action = map.FindAction(actionName, false);
             if (action == null) return;
-            Action<InputAction.CallbackContext> handler = _ => command();
+            // keys like F and M must not fire while the player is typing a level name
+            Action<InputAction.CallbackContext> handler = _ => { if (!UIFocus.IsTyping) command(); };
             action.performed += handler;
             hooks.Add((action, handler));
         }

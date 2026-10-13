@@ -28,14 +28,22 @@ namespace Rewind.UI
         UIScreen howToReturn;
         Coroutine unlockRoutine;
         int overlayClosedFrame = -1;
+        LevelEditorScreen editor;   // built in code at start-up, so it needs no prefab
 
         public RewindGame Game => game;
+        /// <summary>A level from the in-game editor is being test-played; "back" returns to the editor.</summary>
+        public bool TestingCustomLevel => game && game.IsCustomLevel;
         /// <summary>The tape played most recently, so the shelf can reselect it.</summary>
         public int LastPlayedIndex { get; private set; } = -1;
         public bool AnyOverlayOpen => Is(pause) || Is(solved) || Is(howTo);
         public bool InGame => game && game.HasLevel && Is(hud);
 
         static bool Is(UIScreen s) => s && s.IsOpen;
+
+        void Awake()
+        {
+            if (!editor) editor = LevelEditorScreen.Build(this);
+        }
 
         void OnEnable()
         {
@@ -71,12 +79,19 @@ namespace Rewind.UI
             CloseOverlays();
             Close(hud);
             Close(levelSelect);
+            Close(editor);
             Open(title);
             LockInput();
         }
 
         public void ShowLevelSelect()
         {
+            // after test-playing a level from the editor, "select tape" goes back to the editor instead
+            if (TestingCustomLevel)
+            {
+                OpenEditor();
+                return;
+            }
             if (game) game.UnloadLevel();
             CloseOverlays();
             Close(hud);
@@ -87,6 +102,24 @@ namespace Rewind.UI
 
         public void PlayLevel(int index) => game.LoadLevel(index);
         public void Continue() => PlayLevel(game.FirstUnsolvedIndex());
+
+        public void OpenEditor()
+        {
+            if (!editor) return;
+            CloseOverlays();
+            Close(hud);
+            Close(title);
+            Close(levelSelect);
+            Open(editor);
+            LockInput();
+        }
+
+        /// <summary>Test-plays a level built in the editor. Pause and the solved panel lead back to the editor.</summary>
+        public void PlayCustom(LevelData level)
+        {
+            Close(editor);
+            game.LoadCustomLevel(level);
+        }
 
         public void OpenHowTo()
         {
@@ -158,6 +191,7 @@ namespace Rewind.UI
             if (Is(howTo)) CloseHowTo();
             else if (Is(pause)) ClosePause();
             else if (Is(solved)) ShowLevelSelect();
+            else if (Is(editor)) editor.HandleBack();
             else if (InGame) OpenPause();
             else if (Is(levelSelect)) ShowTitle();
         }
@@ -166,7 +200,8 @@ namespace Rewind.UI
 
         void OnLevelLoaded(LevelData level, int index)
         {
-            LastPlayedIndex = index;
+            if (Is(editor)) return;   // the editor loads its level to show it on the board; it stays on screen
+            if (index >= 0) LastPlayedIndex = index;
             Close(title);
             Close(levelSelect);
             CloseOverlays();
@@ -177,6 +212,7 @@ namespace Rewind.UI
 
         void OnSolved(SolveResult result)
         {
+            if (TestingCustomLevel && editor) editor.RecordSolve(result.Loops);
             if (!solved) return;
             solved.Configure(result, game.CurrentLevel, game.HasNextLevel);
             Open(solved);

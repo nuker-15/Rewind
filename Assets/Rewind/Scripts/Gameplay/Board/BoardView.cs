@@ -53,7 +53,10 @@ namespace Rewind.Gameplay
         float shake;
 
         public Bounds WorldBounds { get; private set; }
+        public BoardPalette Palette => palette;
         public static Vector3 CellToLocal(Vector2 cell) => new Vector3(cell.x + 0.5f, -(cell.y + 0.5f), 0f);
+
+        TerrainTileset Terrain => prefabs ? prefabs.terrain : null;
 
         void OnEnable()
         {
@@ -84,9 +87,11 @@ namespace Rewind.Gameplay
         {
             Clear();
             layout = game.Session.Layout;
+            var terrain = Terrain;
             for (int y = 0; y < layout.Height; y++)
                 for (int x = 0; x < layout.Width; x++)
-                    BuildCell(new Vector2Int(x, y));
+                    BuildCell(new Vector2Int(x, y), terrain);
+            if (terrain) BuildTerrain(terrain);
 
             if (prefabs.startMarker)
             {
@@ -120,12 +125,19 @@ namespace Rewind.Gameplay
             LayoutChanged?.Invoke(WorldBounds);
         }
 
-        void BuildCell(Vector2Int cell)
+        void BuildCell(Vector2Int cell, TerrainTileset terrain)
         {
             var tile = layout.TileAt(cell);
             var pos = CellToLocal(cell);
             if (tile.Kind == TileKind.Wall)
             {
+                if (terrain)
+                {
+                    // Auto-tiled walls round off their outer corners, so inner walls need floor underneath to show
+                    // through. Walls on the map edge get none, so the board's outer corners show the background.
+                    if (!IsMapEdge(cell)) BuildFloor(cell, pos, terrain);
+                    return;
+                }
                 var wall = Instantiate(prefabs.wall, tileRoot);
                 wall.transform.localPosition = pos;
                 bool openAbove = cell.y > 0 && !layout.IsWall(cell + Dir.Up);
@@ -134,9 +146,7 @@ namespace Rewind.Gameplay
                 return;
             }
 
-            var floor = Instantiate(prefabs.floor, tileRoot);
-            floor.transform.localPosition = pos;
-            floor.Setup(cell, palette);
+            BuildFloor(cell, pos, terrain);
 
             int index = layout.Index(cell);
             if (layout.InitialGround(index) != GroundState.Solid)
@@ -176,6 +186,50 @@ namespace Rewind.Gameplay
                 }
             }
         }
+
+        void BuildFloor(Vector2Int cell, Vector3 pos, TerrainTileset terrain)
+        {
+            var floor = Instantiate(prefabs.floor, tileRoot);
+            floor.transform.localPosition = pos;
+            floor.Setup(cell, palette);
+            if (terrain) floor.SetTile(terrain.FloorTile(cell));
+        }
+
+        // One tile per grid corner, picked by which of the four cells around it are wall (see TerrainTileset).
+        void BuildTerrain(TerrainTileset terrain)
+        {
+            var root = new GameObject("Terrain").transform;
+            root.SetParent(tileRoot, false);
+            var material = terrain.Material;
+            if (!material && prefabs.floor)
+            {
+                var template = prefabs.floor.GetComponentInChildren<SpriteRenderer>(true);
+                if (template) material = template.sharedMaterial;
+            }
+
+            for (int vy = 0; vy <= layout.Height; vy++)
+                for (int vx = 0; vx <= layout.Width; vx++)
+                {
+                    int mask = TerrainTileset.MaskAt(IsWallCell, vx, vy);
+                    var sprite = terrain.WallTile(mask, palette);
+                    if (!sprite) continue;
+                    var go = new GameObject($"Wall {vx},{vy}");
+                    go.transform.SetParent(root, false);
+                    go.transform.localPosition = new Vector3(vx, -vy, 0f);
+                    // scale the sprite to exactly one cell, plus a hair of overlap so neighbours never show a seam
+                    var size = sprite.bounds.size;
+                    if (size.x > 0f && size.y > 0f) go.transform.localScale = new Vector3(1.01f / size.x, 1.01f / size.y, 1f);
+                    var sr = go.AddComponent<SpriteRenderer>();
+                    sr.sprite = sprite;
+                    sr.sortingOrder = terrain.SortingOrder;
+                    if (material) sr.sharedMaterial = material;
+                }
+        }
+
+        // Cells outside the map count as open, so the outer walls get a rim, a face along the bottom and rounded corners.
+        bool IsWallCell(int x, int y) => x >= 0 && y >= 0 && x < layout.Width && y < layout.Height && layout.IsWall(new Vector2Int(x, y));
+
+        bool IsMapEdge(Vector2Int c) => c.x == 0 || c.y == 0 || c.x == layout.Width - 1 || c.y == layout.Height - 1;
 
         void OnLoopReady(int loopNumber)
         {

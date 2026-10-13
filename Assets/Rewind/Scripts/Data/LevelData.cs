@@ -32,5 +32,23 @@ namespace Rewind.Data
         public string Id => name;
 
         public LevelLayout BuildLayout() => LevelLayout.Parse(map);
+
+        /// <summary>A level that exists only in memory, such as one made in the in-game editor. Never saved as an asset.</summary>
+        public static LevelData CreateRuntime(string displayName, int par, string map)
+        {
+            var level = CreateInstance<LevelData>();
+            level.hideFlags = HideFlags.DontSave;
+            level.Configure(displayName, par, map);
+            return level;
+        }
+
+        /// <summary>Replaces the contents of a level made with <see cref="CreateRuntime"/>.</summary>
+        public void Configure(string newName, int newPar, string newMap)
+        {
+            displayName = string.IsNullOrWhiteSpace(newName) ? "Untitled" : newName.Trim();
+            par = Mathf.Max(1, newPar);
+            map = newMap ?? string.Empty;
+            name = "custom." + displayName;
+        }
     }
 }

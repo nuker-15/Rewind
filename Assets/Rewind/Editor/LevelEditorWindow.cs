@@ -200,8 +200,12 @@ namespace Rewind.EditorTools
                 }
 
                 GUILayout.FlexibleSpace();
+                if (GUILayout.Button(new GUIContent("Import code", "Make a new level from a level code on the clipboard, e.g. one copied in the game's level editor."), EditorStyles.toolbarButton))
+                    ImportCode();
                 using (new EditorGUI.DisabledScope(!level))
                 {
+                    if (GUILayout.Button(new GUIContent("Copy code", "Copy this level as a one-line code that the in-game editor can paste."), EditorStyles.toolbarButton))
+                        CopyCode();
                     if (GUILayout.Button("Duplicate", EditorStyles.toolbarButton)) Duplicate();
                     if (GUILayout.Button("Ping asset", EditorStyles.toolbarButton)) EditorGUIUtility.PingObject(level);
                     if (GUILayout.Button("▶ Playtest", EditorStyles.toolbarButton)) { Save(); LevelPlaytest.Start(level); }
@@ -216,6 +220,32 @@ namespace Rewind.EditorTools
             newWidth = Mathf.Clamp(EditorGUILayout.IntField("Width (tiles)", newWidth), MinSize, MaxSize);
             newHeight = Mathf.Clamp(EditorGUILayout.IntField("Height (tiles)", newHeight), MinSize, MaxSize);
             if (GUILayout.Button("Create and add to catalog", GUILayout.Height(26))) SetLevel(CreateLevel(newName, newWidth, newHeight));
+            EditorGUILayout.Space(6);
+            if (GUILayout.Button("Import a level code from the clipboard", GUILayout.Height(26))) ImportCode();
+        }
+
+        // ---- Level codes (shared with the in-game editor) -------------------------------------------------
+
+        void CopyCode()
+        {
+            Save();
+            GUIUtility.systemCopyBuffer = LevelCode.Encode(level.DisplayName, level.Par, level.Map);
+            ShowNotification(new GUIContent("Level code copied"));
+        }
+
+        void ImportCode()
+        {
+            string text = GUIUtility.systemCopyBuffer;
+            if (!LevelCode.TryDecode(text, out string name, out int par, out string map, out string error))
+            {
+                EditorUtility.DisplayDialog("Import level code",
+                    string.IsNullOrWhiteSpace(text)
+                        ? "The clipboard is empty. Copy a level code first (COPY CODE in the game's level editor)."
+                        : "The clipboard does not hold a level code:\n\n" + error, "OK");
+                return;
+            }
+            SetLevel(CreateLevel(name, map, par));
+            ShowNotification(new GUIContent($"Imported \"{name}\""));
         }
 
         // ---- Grid ---------------------------------------------------------------------------------------------
@@ -788,10 +818,17 @@ namespace Rewind.EditorTools
                     sb.Append(border ? '#' : x == 1 && y == 1 ? 'S' : x == width - 2 && y == height - 2 ? 'X' : '.');
                 }
             }
+            return CreateLevel(displayName, sb.ToString(), 2);
+        }
+
+        /// <summary>Creates a level asset from a text map and adds it to the catalog.</summary>
+        static LevelData CreateLevel(string displayName, string map, int par)
+        {
             var data = CreateInstance<LevelData>();
             var so = new SerializedObject(data);
             so.FindProperty("displayName").stringValue = displayName;
-            so.FindProperty("map").stringValue = sb.ToString();
+            so.FindProperty("par").intValue = Mathf.Max(1, par);
+            so.FindProperty("map").stringValue = map;
             so.ApplyModifiedPropertiesWithoutUndo();
             string path = NextPath(displayName);
             AssetDatabase.CreateAsset(data, path);

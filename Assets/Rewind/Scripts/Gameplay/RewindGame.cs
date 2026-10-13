@@ -59,6 +59,8 @@ namespace Rewind.Gameplay
         public LevelData CurrentLevel { get; private set; }
         public int LevelIndex { get; private set; } = -1;
         public bool HasLevel => Session != null;
+        /// <summary>The level came from the in-game editor rather than the catalog.</summary>
+        public bool IsCustomLevel => Session != null && LevelIndex < 0;
         public bool IsPaused { get; private set; }
         /// <summary>Set by whoever owns overlays (intro cards, menus) to stop moves from reaching the board.</summary>
         public bool InputLocked { get; set; }
@@ -119,14 +121,25 @@ namespace Rewind.Gameplay
                 Debug.LogError($"No level at index {index}.", this);
                 return;
             }
+            Load(catalog[index], index);
+        }
+
+        /// <summary>Loads a level that is not in the catalog, such as one from the in-game editor.</summary>
+        public void LoadCustomLevel(LevelData level)
+        {
+            if (level) Load(level, -1);
+        }
+
+        void Load(LevelData level, int index)
+        {
             LevelLayout layout;
-            try { layout = catalog[index].BuildLayout(); }
+            try { layout = level.BuildLayout(); }
             catch (FormatException e)
             {
-                Debug.LogError($"Level '{catalog[index].name}' has a broken map: {e.Message}", catalog[index]);
+                Debug.LogError($"Level '{level.name}' has a broken map: {e.Message}", level);
                 return;
             }
-            CurrentLevel = catalog[index];
+            CurrentLevel = level;
             LevelIndex = index;
             Session = new LoopSession(layout, config.LoopTicks);
             ResetTiming();
@@ -247,7 +260,7 @@ namespace Rewind.Gameplay
             if (Session.Phase == LoopPhase.Solved)
             {
                 ClearHeldInput();
-                bool newBest = PlayerProgress.Record(CurrentLevel, Session.LoopsUsed);
+                bool newBest = !IsCustomLevel && PlayerProgress.Record(CurrentLevel, Session.LoopsUsed);
                 Solved?.Invoke(new SolveResult(Session.LoopsUsed, CurrentLevel.Par, newBest));
             }
         }

@@ -26,5 +26,9 @@ namespace Rewind.Gameplay
         public ParadoxMarkerView paradoxMarker;
         public SpriteBurst burst;
         public FloatingLabel floatingLabel;
+
+        [Header("Terrain")]
+        [Tooltip("Auto-tiled walls (and optional floor tiles). Leave empty to use the square wall prefab above.")]
+        public TerrainTileset terrain;
     }
 }

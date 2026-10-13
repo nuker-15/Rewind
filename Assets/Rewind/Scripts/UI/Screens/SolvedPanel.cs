@@ -32,7 +32,10 @@ namespace Rewind.UI
                     : $"PAR IS {result.Par}. THERE IS A SHORTER WAY.";
                 verdictLabel.color = result.MatchedPar ? atParColor : overParColor;
             }
-            if (next) next.Label = hasNext ? "NEXT TAPE" : "ALL TAPES";
+            // a level being tested from the editor: "next" leads back to the editor, and there is no shelf to go to
+            bool custom = router && router.TestingCustomLevel;
+            if (next) next.Label = custom ? "BACK TO EDITOR" : hasNext ? "NEXT TAPE" : "ALL TAPES";
+            if (levelSelect) levelSelect.gameObject.SetActive(!custom);
         }
     }
 }

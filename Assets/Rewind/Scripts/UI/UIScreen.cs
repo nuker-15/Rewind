@@ -22,6 +22,9 @@ namespace Rewind.UI
 
         CanvasGroup Group => group ? group : group = GetComponent<CanvasGroup>();
 
+        /// <summary>For screens built in code rather than in a prefab.</summary>
+        internal void Bind(UIRouter owner) => router = owner;
+
         public void Open()
         {
             gameObject.SetActive(true);

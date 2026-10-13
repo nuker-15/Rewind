@@ -27,3 +27,4 @@ MonoBehaviour:
   paradoxMarker: {fileID: 4432755492867181584, guid: a665c9d7187fcc54bb614e0f9419814c, type: 3}
   burst: {fileID: 6658625839158269009, guid: 99f2b15f6786f434eacfa7f52fe961ce, type: 3}
   floatingLabel: {fileID: 7885985453699067968, guid: ba407246a8e0987449563f370d90d721, type: 3}
+  terrain: {fileID: 11400000, guid: b0c506b0ef5d420d96e69955445819cc, type: 2}
