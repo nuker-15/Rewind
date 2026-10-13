@@ -3805,8 +3805,8 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: "ARROWS / WASD move   \xB7   SPACE end loop early   \xB7   R retry loop  
-    \xB7   Z erase last echo   \xB7   ESC menu   \xB7   F fullscreen   \xB7   M sound"
+  m_text: "ARROWS / WASD move   |   SPACE end loop early   |   R retry loop  
+    |   Z erase last echo   |   ESC menu   |   F fullscreen   |   M sound"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

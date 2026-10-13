@@ -273,7 +273,7 @@ namespace Rewind.EditorTools
             var quit = AddMenuButton(menu, "QUIT", "");
 
             var progress = Txt(Place(UI("Progress", root), new Vector2(0, 0), new Vector2(0, 0), new Vector2(44, 36), new Vector2(600, 40)), "0 OF 9 TAPES SOLVED", 26, UIColor.Muted, TextAlignmentOptions.BottomLeft);
-            Txt(Place(UI("Controls", root), new Vector2(1, 0), new Vector2(1, 0), new Vector2(-44, 36), new Vector2(900, 40)), "ARROWS + ENTER   ·   F FULLSCREEN   ·   M SOUND", 26, UIColor.Muted, TextAlignmentOptions.BottomRight);
+            Txt(Place(UI("Controls", root), new Vector2(1, 0), new Vector2(1, 0), new Vector2(-44, 36), new Vector2(900, 40)), "ARROWS + ENTER   |   F FULLSCREEN   |   M SOUND", 26, UIColor.Muted, TextAlignmentOptions.BottomRight);
 
             Set(screen, "firstSelected", start.Button);
             Set(screen, "continueButton", start);
@@ -306,7 +306,7 @@ namespace Rewind.EditorTools
             layout.childAlignment = TextAnchor.UpperCenter;
 
             Txt(Place(UI("Footer", root), new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 40), new Vector2(1200, 40)),
-                "ARROWS CHOOSE   ·   ENTER PLAY   ·   ESC BACK", 26, UIColor.Muted, TextAlignmentOptions.Center);
+                "ARROWS CHOOSE   |   ENTER PLAY   |   ESC BACK", 26, UIColor.Muted, TextAlignmentOptions.Center);
 
             Set(screen, "cardPrefab", Widgets.LevelCard);
             Set(screen, "grid", grid);
@@ -401,7 +401,7 @@ namespace Rewind.EditorTools
             Set(timeline, "playheadGraphic", playheadImage);
 
             var keys = Txt(Place(UI("KeyHints", root), new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 14), new Vector2(1600, 34)),
-                "ARROWS MOVE   ·   SPACE END LOOP   ·   R RETRY   ·   Z ERASE ECHO   ·   ESC MENU", 22, UIColor.Muted, TextAlignmentOptions.Center);
+                "ARROWS MOVE   |   SPACE END LOOP   |   R RETRY   |   Z ERASE ECHO   |   ESC MENU", 22, UIColor.Muted, TextAlignmentOptions.Center);
 
             // touch controls, hidden unless a touchscreen is present
             var touchRt = Stretch(UI("TouchControls", root));
@@ -487,8 +487,8 @@ namespace Rewind.EditorTools
             Img(Stretch(UI("Dim", root)), Art.Square, Clear(UIColor.Ink, 0.55f), raycast: true);
             var card = Card(root, new Vector2(660, 520), UIColor.Exit);
             Txt(Place(UI("Headline", card), new Vector2(0.5f, 1), new Vector2(0.5f, 0.5f), new Vector2(0, -84), new Vector2(620, 120)), "SOLVED", 110, UIColor.Exit, TextAlignmentOptions.Center);
-            var loops = Txt(Place(UI("Loops", card), new Vector2(0.5f, 1), new Vector2(0.5f, 0.5f), new Vector2(0, -168), new Vector2(620, 50)), "2 LOOPS  ·  PAR 2", 40, UIColor.Fg, TextAlignmentOptions.Center);
-            var verdict = Txt(Place(UI("Verdict", card), new Vector2(0.5f, 1), new Vector2(0.5f, 0.5f), new Vector2(0, -218), new Vector2(620, 40)), "★  MATCHED PAR", 28, UIColor.Amber, TextAlignmentOptions.Center);
+            var loops = Txt(Place(UI("Loops", card), new Vector2(0.5f, 1), new Vector2(0.5f, 0.5f), new Vector2(0, -168), new Vector2(620, 50)), "2 LOOPS  |  PAR 2", 40, UIColor.Fg, TextAlignmentOptions.Center);
+            var verdict = Txt(Place(UI("Verdict", card), new Vector2(0.5f, 1), new Vector2(0.5f, 0.5f), new Vector2(0, -218), new Vector2(620, 40)), "MATCHED PAR", 28, UIColor.Amber, TextAlignmentOptions.Center);
             var menu = MenuColumn(card, Vector2.zero, 520);
             Place(menu, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -268), new Vector2(520, 0));
             var next = AddMenuButton(menu, "NEXT TAPE", "ENTER");
@@ -583,7 +583,7 @@ namespace Rewind.EditorTools
             });
 
             Txt(Place(UI("Controls", card), new Vector2(0, 0), new Vector2(0, 0), new Vector2(60, 40), new Vector2(1440, 64)),
-                "ARROWS / WASD move   ·   SPACE end loop early   ·   R retry loop   ·   Z erase last echo   ·   ESC menu   ·   F fullscreen   ·   M sound",
+                "ARROWS / WASD move   |   SPACE end loop early   |   R retry loop   |   Z erase last echo   |   ESC menu   |   F fullscreen   |   M sound",
                 22, UIColor.Muted, TextAlignmentOptions.BottomLeft, FontStyles.Normal, wrap: true);
             Set(screen, "back", back);
             Set(screen, "firstSelected", back.Button);

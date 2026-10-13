@@ -47,7 +47,7 @@ namespace Rewind.UI
             if (bestLabel)
             {
                 if (best <= 0) { bestLabel.text = "UNPLAYED"; bestLabel.color = unplayed; }
-                else if (best <= level.Par) { bestLabel.text = $"★ BEST {best}"; bestLabel.color = bestAtPar; }
+                else if (best <= level.Par) { bestLabel.text = $"BEST {best}"; bestLabel.color = bestAtPar; }
                 else { bestLabel.text = $"BEST {best}"; bestLabel.color = bestOverPar; }
             }
             SetSelected(false);

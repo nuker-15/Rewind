@@ -208,7 +208,7 @@ namespace Rewind.EditorTools
                         CopyCode();
                     if (GUILayout.Button("Duplicate", EditorStyles.toolbarButton)) Duplicate();
                     if (GUILayout.Button("Ping asset", EditorStyles.toolbarButton)) EditorGUIUtility.PingObject(level);
-                    if (GUILayout.Button("▶ Playtest", EditorStyles.toolbarButton)) { Save(); LevelPlaytest.Start(level); }
+                    if (GUILayout.Button("Playtest", EditorStyles.toolbarButton)) { Save(); LevelPlaytest.Start(level); }
                 }
             }
         }

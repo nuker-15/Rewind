@@ -24,11 +24,11 @@ namespace Rewind.UI
 
         public void Configure(SolveResult result, LevelData level, bool hasNext)
         {
-            if (loopsLabel) loopsLabel.text = $"{result.Loops} LOOP{(result.Loops == 1 ? "" : "S")}   ·   PAR {result.Par}";
+            if (loopsLabel) loopsLabel.text = $"{result.Loops} LOOP{(result.Loops == 1 ? "" : "S")}   |   PAR {result.Par}";
             if (verdictLabel)
             {
                 verdictLabel.text = result.MatchedPar
-                    ? "★  MATCHED PAR" + (result.NewBest ? "   ·   NEW BEST" : "")
+                    ? "MATCHED PAR" + (result.NewBest ? "   |   NEW BEST" : "")
                     : $"PAR IS {result.Par}. THERE IS A SHORTER WAY.";
                 verdictLabel.color = result.MatchedPar ? atParColor : overParColor;
             }

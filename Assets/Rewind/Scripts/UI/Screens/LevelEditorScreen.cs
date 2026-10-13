@@ -772,7 +772,7 @@ namespace Rewind.UI
         {
             if (!hintLabel) return;
             string name = Swatches.First(s => s.Glyph == glyph).Name.ToUpperInvariant();
-            hintLabel.text = $"PAINTING: {name}   ·   {ToolNames[(int)tool]}   ·   CLICK OR DRAG ON THE BOARD, RIGHT CLICK ERASES   ·   CTRL+Z UNDOES   ·   START AND EXIT CAN ONLY BE MOVED";
+            hintLabel.text = $"PAINTING: {name}   |   {ToolNames[(int)tool]}   |   CLICK OR DRAG ON THE BOARD, RIGHT CLICK ERASES   |   CTRL+Z UNDOES   |   START AND EXIT CAN ONLY BE MOVED";
         }
 
         void RecolorSwatches()
