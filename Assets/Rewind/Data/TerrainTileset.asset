@@ -29,20 +29,102 @@ MonoBehaviour:
   - {fileID: 0}
   - {fileID: 0}
   - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  holeTiles:
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
+  - {fileID: 0}
   pixelsPerTile: 64
   usePaletteColors: 1
-  topColor: {r: 0.165, g: 0.184, b: 0.361, a: 1}
-  rimColor: {r: 0.267, g: 0.294, b: 0.549, a: 1}
-  faceColor: {r: 0.106, g: 0.122, b: 0.263, a: 1}
-  lineColor: {r: 0.24, g: 0.27, b: 0.5, a: 1}
-  shadowColor: {r: 0, g: 0, b: 0, a: 0.35}
-  cornerRadius: 0.16
-  innerCornerRadius: 0.08
-  faceHeight: 0.26
-  rimWidth: 0.035
-  lineInset: 0.12
-  lineWidth: 0.022
-  shadowLength: 0.14
+  wallTop: {r: 0.165, g: 0.184, b: 0.361, a: 1}
+  wallRim: {r: 0.267, g: 0.294, b: 0.549, a: 1}
+  wallFace: {r: 0.106, g: 0.122, b: 0.263, a: 1}
+  wallLine: {r: 0.24, g: 0.27, b: 0.5, a: 1}
+  wallCornerRadius: 0.18
+  wallFaceHeight: 0.3
+  wallRimWidth: 0.035
+  wallLineInset: 0.12
+  wallLineWidth: 0.022
+  holePit: {r: 0.016, g: 0.02, b: 0.047, a: 1}
+  holeWall: {r: 0.106, g: 0.122, b: 0.263, a: 1}
+  holeLip: {r: 0.186, g: 0.208, b: 0.406, a: 1}
+  holeCornerRadius: 0.2
+  holeWallHeight: 0.34
+  holeLipWidth: 0.045
   floorTiles: []
   sortingOrder: 1
   material: {fileID: 0}

@@ -57,6 +57,9 @@ namespace Rewind.Gameplay
         public static Vector3 CellToLocal(Vector2 cell) => new Vector3(cell.x + 0.5f, -(cell.y + 0.5f), 0f);
 
         TerrainTileset Terrain => prefabs ? prefabs.terrain : null;
+        Material terrainMaterial;
+        GroundState[] holeGround;               // the ground being drawn this frame, read by IsHoleCell
+        Func<int, int, bool> isHoleCell;        // cached so picking hole tiles every frame allocates nothing
 
         void OnEnable()
         {
@@ -88,10 +91,10 @@ namespace Rewind.Gameplay
             Clear();
             layout = game.Session.Layout;
             var terrain = Terrain;
+            terrainMaterial = terrain ? TerrainMaterial(terrain) : null;
             for (int y = 0; y < layout.Height; y++)
                 for (int x = 0; x < layout.Width; x++)
                     BuildCell(new Vector2Int(x, y), terrain);
-            if (terrain) BuildTerrain(terrain);
 
             if (prefabs.startMarker)
             {
@@ -136,6 +139,7 @@ namespace Rewind.Gameplay
                     // Auto-tiled walls round off their outer corners, so inner walls need floor underneath to show
                     // through. Walls on the map edge get none, so the board's outer corners show the background.
                     if (!IsMapEdge(cell)) BuildFloor(cell, pos, terrain);
+                    PlaceWallTile(cell, pos, terrain);
                     return;
                 }
                 var wall = Instantiate(prefabs.wall, tileRoot);
@@ -195,39 +199,35 @@ namespace Rewind.Gameplay
             if (terrain) floor.SetTile(terrain.FloorTile(cell));
         }
 
-        // One tile per grid corner, picked by which of the four cells around it are wall (see TerrainTileset).
-        void BuildTerrain(TerrainTileset terrain)
+        // A wall picks its tile from which of its eight neighbours are wall (see TerrainTileset).
+        void PlaceWallTile(Vector2Int cell, Vector3 pos, TerrainTileset terrain)
         {
-            var root = new GameObject("Terrain").transform;
-            root.SetParent(tileRoot, false);
-            var material = terrain.Material;
-            if (!material && prefabs.floor)
-            {
-                var template = prefabs.floor.GetComponentInChildren<SpriteRenderer>(true);
-                if (template) material = template.sharedMaterial;
-            }
+            var sprite = terrain.Tile(TerrainTileset.Kind.Wall, TerrainTileset.NeighbourMask(IsWallCell, cell.x, cell.y), palette);
+            if (!sprite) return;
+            var go = new GameObject($"Wall {cell.x},{cell.y}");
+            go.transform.SetParent(tileRoot, false);
+            go.transform.localPosition = pos;
+            // scale the sprite to exactly one cell, plus a hair of overlap so neighbours never show a seam
+            var size = sprite.bounds.size;
+            if (size.x > 0f && size.y > 0f) go.transform.localScale = new Vector3(1.01f / size.x, 1.01f / size.y, 1f);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = sprite;
+            sr.sortingOrder = terrain.SortingOrder;
+            if (terrainMaterial) sr.sharedMaterial = terrainMaterial;
+        }
 
-            for (int vy = 0; vy <= layout.Height; vy++)
-                for (int vx = 0; vx <= layout.Width; vx++)
-                {
-                    int mask = TerrainTileset.MaskAt(IsWallCell, vx, vy);
-                    var sprite = terrain.WallTile(mask, palette);
-                    if (!sprite) continue;
-                    var go = new GameObject($"Wall {vx},{vy}");
-                    go.transform.SetParent(root, false);
-                    go.transform.localPosition = new Vector3(vx, -vy, 0f);
-                    // scale the sprite to exactly one cell, plus a hair of overlap so neighbours never show a seam
-                    var size = sprite.bounds.size;
-                    if (size.x > 0f && size.y > 0f) go.transform.localScale = new Vector3(1.01f / size.x, 1.01f / size.y, 1f);
-                    var sr = go.AddComponent<SpriteRenderer>();
-                    sr.sprite = sprite;
-                    sr.sortingOrder = terrain.SortingOrder;
-                    if (material) sr.sharedMaterial = material;
-                }
+        Material TerrainMaterial(TerrainTileset terrain)
+        {
+            if (terrain.Material) return terrain.Material;
+            var template = prefabs.floor ? prefabs.floor.GetComponentInChildren<SpriteRenderer>(true) : null;
+            return template ? template.sharedMaterial : null;
         }
 
         // Cells outside the map count as open, so the outer walls get a rim, a face along the bottom and rounded corners.
         bool IsWallCell(int x, int y) => x >= 0 && y >= 0 && x < layout.Width && y < layout.Height && layout.IsWall(new Vector2Int(x, y));
+
+        bool IsHoleCell(int x, int y) =>
+            x >= 0 && y >= 0 && x < layout.Width && y < layout.Height && holeGround[layout.Index(new Vector2Int(x, y))] == GroundState.Hole;
 
         bool IsMapEdge(Vector2Int c) => c.x == 0 || c.y == 0 || c.x == layout.Width - 1 || c.y == layout.Height - 1;
 
@@ -404,7 +404,19 @@ namespace Rewind.Gameplay
                 for (int k = 0; k < pips.Length; k++) pips[k] = platePressed[onChannel[k]];
                 doors[i].SetState(doorOpen[i], pips);
             }
-            foreach (var pair in grounds) pair.Value.SetState(ground[pair.Key]);
+            // Holes come and go (floor crumbles, crates fill them, the rewind undoes both), so their tiles are picked
+            // every frame from the ground being shown. Only cells that can change have a GroundView, so this stays cheap.
+            var terrain = Terrain;
+            holeGround = ground;
+            foreach (var pair in grounds)
+            {
+                var state = ground[pair.Key];
+                pair.Value.SetState(state);
+                if (!terrain || state != GroundState.Hole) continue;
+                var cell = layout.CellOf(pair.Key);
+                int mask = TerrainTileset.NeighbourMask(isHoleCell ??= IsHoleCell, cell.x, cell.y);
+                pair.Value.SetHoleTile(terrain.Tile(TerrainTileset.Kind.Hole, mask, palette));
+            }
         }
 
         void MarkPressed(Component view) => MarkPressed(view ? view.gameObject : null);

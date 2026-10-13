@@ -28,7 +28,7 @@ namespace Rewind.Gameplay
         public FloatingLabel floatingLabel;
 
         [Header("Terrain")]
-        [Tooltip("Auto-tiled walls (and optional floor tiles). Leave empty to use the square wall prefab above.")]
+        [Tooltip("Auto-tiled walls and holes (and optional floor tiles). Leave empty to use the square wall and hole prefabs above.")]
         public TerrainTileset terrain;
     }
 }

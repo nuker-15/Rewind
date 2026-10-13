@@ -12,11 +12,14 @@ namespace Rewind.Tests
     {
         const int LoopTicks = 80;
 
+        // Every tape the game ships (the catalog) must hold up. Level assets outside the catalog are drafts.
         static IEnumerable<TestCaseData> Levels()
         {
-            foreach (var guid in AssetDatabase.FindAssets("t:LevelData", new[] { "Assets/Rewind" }))
+            var catalogGuid = AssetDatabase.FindAssets("t:LevelCatalog", new[] { "Assets/Rewind" }).First();
+            var catalog = AssetDatabase.LoadAssetAtPath<LevelCatalog>(AssetDatabase.GUIDToAssetPath(catalogGuid));
+            foreach (var level in catalog.Levels)
             {
-                var path = AssetDatabase.GUIDToAssetPath(guid);
+                var path = AssetDatabase.GetAssetPath(level);
                 yield return new TestCaseData(path).SetName("Level: " + System.IO.Path.GetFileNameWithoutExtension(path));
             }
         }

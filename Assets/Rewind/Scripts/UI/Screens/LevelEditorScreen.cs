@@ -325,7 +325,8 @@ namespace Rewind.UI
             if (stroking)
             {
                 var clamped = new Vector2Int(Mathf.Clamp(cell.x, 0, W - 1), Mathf.Clamp(cell.y, 0, H - 1));
-                if (leftHeld || rightHeld) ContinueStroke(clamped);
+                // only the rectangle snaps to the board's edge; a brush dragged off the board paints nothing out there
+                if (leftHeld || rightHeld) ContinueStroke(tool == Tool.Rectangle ? clamped : cell);
                 else EndStroke();
                 if (stroking) ShowCursor(tool == Tool.Rectangle ? strokeStart : clamped, clamped, erasing);
                 else HideCursor();
