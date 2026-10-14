@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using Rewind.Core;
 using Rewind.Data;
 using UnityEngine;
+using UnityEngine.Tilemaps;
+using TileAsset = UnityEngine.Tilemaps.Tile;   // Rewind.Core has a Tile too
 
 namespace Rewind.Gameplay
 {
@@ -32,6 +34,11 @@ namespace Rewind.Gameplay
         [SerializeField] int crumbleParticles = 14;
         [SerializeField] int solveParticles = 40;
 
+        [Header("Plate wires")]
+        [SerializeField, Tooltip("Thickness, in tiles, of the wires drawn from plates to the doors they control.")] float wireWidth = 0.08f;
+        [SerializeField, Range(0f, 1f)] float wireIdleAlpha = 0.18f;
+        [SerializeField, Range(0f, 1f), Tooltip("Alpha of a wire while its plate is pressed.")] float wireLitAlpha = 0.75f;
+
         /// <summary>Raised after the board is rebuilt, with its bounds in world space.</summary>
         public event Action<Bounds> LayoutChanged;
 
@@ -46,6 +53,17 @@ namespace Rewind.Gameplay
         readonly List<SpriteBurst> bursts = new List<SpriteBurst>();
         readonly List<FloatingLabel> labels = new List<FloatingLabel>();
         readonly Dictionary<Vector2Int, int> stackCounts = new Dictionary<Vector2Int, int>();
+        readonly List<(SpriteRenderer renderer, int plate, Color color)> wires = new List<(SpriteRenderer, int, Color)>();
+        readonly List<(SpriteRenderer renderer, int checkpoint)> checkpointViews = new List<(SpriteRenderer, int)>();
+        readonly List<GameObject> closedShades = new List<GameObject>();
+        Sprite whiteSprite;
+
+        // Floors and walls go on two tilemaps instead of an object per cell, so even big levels build quickly.
+        Tilemap floorMap, wallMap;
+        Sprite plainFloor;
+        readonly Dictionary<Sprite, TileAsset> tileAssets = new Dictionary<Sprite, TileAsset>();
+        readonly List<TileChangeData> floorChanges = new List<TileChangeData>();
+        readonly List<TileChangeData> wallChanges = new List<TileChangeData>();
         BodyView playerView;
         LevelLayout layout;
         bool[] platePressed = Array.Empty<bool>();
@@ -54,6 +72,12 @@ namespace Rewind.Gameplay
 
         public Bounds WorldBounds { get; private set; }
         public BoardPalette Palette => palette;
+        public RewindGame Game => game;
+
+        /// <summary>World-space bounds of a block of cells, e.g. one room.</summary>
+        public Bounds CellBounds(RectInt cells) =>
+            new Bounds(transform.TransformPoint(new Vector3(cells.x + cells.width * 0.5f, -(cells.y + cells.height * 0.5f), 0f)),
+                new Vector3(cells.width, cells.height, 0f));
         public static Vector3 CellToLocal(Vector2 cell) => new Vector3(cell.x + 0.5f, -(cell.y + 0.5f), 0f);
 
         TerrainTileset Terrain => prefabs ? prefabs.terrain : null;
@@ -70,6 +94,7 @@ namespace Rewind.Gameplay
             game.Ticked += OnTicked;
             game.ParadoxOccurred += OnParadox;
             game.Solved += OnSolved;
+            game.SectionChanged += RefreshSections;
             if (game.HasLevel) { OnLevelLoaded(game.CurrentLevel, game.LevelIndex); OnLoopReady(game.LoopNumber); }
         }
 
@@ -82,6 +107,7 @@ namespace Rewind.Gameplay
             game.Ticked -= OnTicked;
             game.ParadoxOccurred -= OnParadox;
             game.Solved -= OnSolved;
+            game.SectionChanged -= RefreshSections;
         }
 
         // ---- Building ------------------------------------------------------------------------
@@ -92,9 +118,12 @@ namespace Rewind.Gameplay
             layout = game.Session.Layout;
             var terrain = Terrain;
             terrainMaterial = terrain ? TerrainMaterial(terrain) : null;
+            PrepareTilemaps(terrain);
             for (int y = 0; y < layout.Height; y++)
                 for (int x = 0; x < layout.Width; x++)
                     BuildCell(new Vector2Int(x, y), terrain);
+            floorMap.SetTiles(floorChanges.ToArray(), false);
+            wallMap.SetTiles(wallChanges.ToArray(), false);
 
             if (prefabs.startMarker)
             {
@@ -106,7 +135,9 @@ namespace Rewind.Gameplay
             platePressed = new bool[layout.Plates.Count];
             doorPips = new bool[layout.Doors.Count][];
             for (int i = 0; i < layout.Doors.Count; i++)
-                doorPips[i] = new bool[layout.PlatesOnChannel(layout.Doors[i].Channel).Count];
+                doorPips[i] = new bool[layout.DoorPlates(i).Count];
+            BuildWires();
+            RefreshSections();
 
             for (int i = 0; i < layout.CrateStarts.Count; i++)
             {
@@ -138,8 +169,8 @@ namespace Rewind.Gameplay
                 {
                     // Auto-tiled walls round off their outer corners, so inner walls need floor underneath to show
                     // through. Walls on the map edge get none, so the board's outer corners show the background.
-                    if (!IsMapEdge(cell)) BuildFloor(cell, pos, terrain);
-                    PlaceWallTile(cell, pos, terrain);
+                    if (!IsMapEdge(cell)) BuildFloor(cell, terrain);
+                    PlaceWallTile(cell, terrain);
                     return;
                 }
                 var wall = Instantiate(prefabs.wall, tileRoot);
@@ -150,7 +181,7 @@ namespace Rewind.Gameplay
                 return;
             }
 
-            BuildFloor(cell, pos, terrain);
+            BuildFloor(cell, terrain);
 
             int index = layout.Index(cell);
             if (layout.InitialGround(index) != GroundState.Solid)
@@ -177,8 +208,16 @@ namespace Rewind.Gameplay
                     var door = Instantiate(prefabs.door, tileRoot);
                     door.transform.localPosition = pos;
                     bool across = !layout.IsWall(cell + Dir.Left) && !layout.IsWall(cell + Dir.Right);
-                    door.Setup(palette.Channel(tile.Channel), tile.Inverse, across, layout.PlateCount(tile.Channel), palette);
+                    door.Setup(palette.Channel(tile.Channel), tile.Inverse, across, layout.DoorPlates(layout.DoorIndexAt(cell)).Count, palette);
                     doors.Add(door);     // same order as layout.Doors
+                    break;
+                }
+                case TileKind.Checkpoint:
+                {
+                    if (!prefabs.startMarker) break;
+                    var marker = Instantiate(prefabs.startMarker, tileRoot);
+                    marker.transform.localPosition = pos;
+                    if (marker.TryGetComponent(out SpriteRenderer sr)) checkpointViews.Add((sr, layout.CheckpointIndexAt(cell)));
                     break;
                 }
                 case TileKind.Exit:
@@ -191,29 +230,154 @@ namespace Rewind.Gameplay
             }
         }
 
-        void BuildFloor(Vector2Int cell, Vector3 pos, TerrainTileset terrain)
+        // The floor checkerboard, using the tileset's floor sprites when there is a tileset.
+        void BuildFloor(Vector2Int cell, TerrainTileset terrain)
         {
-            var floor = Instantiate(prefabs.floor, tileRoot);
-            floor.transform.localPosition = pos;
-            floor.Setup(cell, palette);
-            if (terrain) floor.SetTile(terrain.FloorTile(cell));
+            var sprite = terrain ? terrain.FloorTile(cell) : null;
+            if (!sprite) sprite = plainFloor;
+            if (!sprite) return;
+            var color = (cell.x + cell.y) % 2 == 1 ? palette.floorA : palette.floorB;
+            var tile = TileFor(sprite, 1f);
+            floorChanges.Add(new TileChangeData(TilePosition(cell), tile, color, tile.transform));
         }
 
         // A wall picks its tile from which of its eight neighbours are wall (see TerrainTileset).
-        void PlaceWallTile(Vector2Int cell, Vector3 pos, TerrainTileset terrain)
+        void PlaceWallTile(Vector2Int cell, TerrainTileset terrain)
         {
             var sprite = terrain.Tile(TerrainTileset.Kind.Wall, TerrainTileset.NeighbourMask(IsWallCell, cell.x, cell.y), palette);
             if (!sprite) return;
-            var go = new GameObject($"Wall {cell.x},{cell.y}");
-            go.transform.SetParent(tileRoot, false);
-            go.transform.localPosition = pos;
-            // scale the sprite to exactly one cell, plus a hair of overlap so neighbours never show a seam
+            // a hair of overlap so neighbouring walls never show a seam
+            var tile = TileFor(sprite, 1.01f);
+            wallChanges.Add(new TileChangeData(TilePosition(cell), tile, Color.white, tile.transform));
+        }
+
+        // Cell (x, y) sits at local (x + 0.5, -(y + 0.5)), which is tilemap cell (x, -y - 1).
+        static Vector3Int TilePosition(Vector2Int cell) => new Vector3Int(cell.x, -cell.y - 1, 0);
+
+        /// <summary>A tile showing a sprite scaled to fill exactly one cell, whatever the sprite's resolution. Made once per sprite.</summary>
+        TileAsset TileFor(Sprite sprite, float scale)
+        {
+            if (tileAssets.TryGetValue(sprite, out var tile) && tile) return tile;
+            tile = ScriptableObject.CreateInstance<TileAsset>();
+            tile.hideFlags = HideFlags.DontSave;
+            tile.sprite = sprite;
             var size = sprite.bounds.size;
-            if (size.x > 0f && size.y > 0f) go.transform.localScale = new Vector3(1.01f / size.x, 1.01f / size.y, 1f);
+            tile.transform = size.x > 0f && size.y > 0f ? Matrix4x4.Scale(new Vector3(scale / size.x, scale / size.y, 1f)) : Matrix4x4.identity;
+            tile.flags = TileFlags.LockTransform;   // the colour stays free, for the floor checkerboard
+            tileAssets[sprite] = tile;
+            return tile;
+        }
+
+        /// <summary>Makes the floor and wall tilemaps the first time, beside the tile objects so they shake with them, and empties them.</summary>
+        void PrepareTilemaps(TerrainTileset terrain)
+        {
+            if (!floorMap)
+            {
+                var grid = new GameObject("Tilemaps", typeof(Grid)).transform;
+                grid.SetParent(tileRoot.parent, false);
+                grid.localPosition = tileRoot.localPosition;
+                var template = prefabs.floor ? prefabs.floor.GetComponentInChildren<SpriteRenderer>(true) : null;
+                plainFloor = template ? template.sprite : null;
+                floorMap = TilemapLayer(grid, "Floor", template ? template.sortingOrder : 0, template ? template.sharedMaterial : null);
+                wallMap = TilemapLayer(grid, "Walls", terrain ? terrain.SortingOrder : 1, null);
+            }
+            if (terrainMaterial) wallMap.GetComponent<TilemapRenderer>().sharedMaterial = terrainMaterial;
+            floorMap.ClearAllTiles();
+            wallMap.ClearAllTiles();
+            floorChanges.Clear();
+            wallChanges.Clear();
+        }
+
+        static Tilemap TilemapLayer(Transform grid, string name, int order, Material material)
+        {
+            var go = new GameObject(name, typeof(Tilemap), typeof(TilemapRenderer));
+            go.transform.SetParent(grid, false);
+            var renderer = go.GetComponent<TilemapRenderer>();
+            renderer.sortingOrder = order;
+            if (material) renderer.sharedMaterial = material;
+            return go.GetComponent<Tilemap>();
+        }
+
+        // A thin line from every plate to each door it controls, in the colour they share.
+        void BuildWires()
+        {
+            for (int d = 0; d < layout.Doors.Count; d++)
+            {
+                var door = layout.Doors[d];
+                var color = palette.Channel(door.Channel);
+                foreach (int p in layout.DoorPlates(d))
+                {
+                    Vector3 a = CellToLocal(layout.Plates[p].Cell), b = CellToLocal(door.Cell), along = b - a;
+                    // just in front of the walls, which share its order: above the floor, below plates and doors
+                    var sr = WhiteQuad("Wire", (a + b) * 0.5f + new Vector3(0f, 0f, -0.01f), new Vector3(along.magnitude, wireWidth, 1f), 1);
+                    sr.transform.localRotation = Quaternion.Euler(0f, 0f, Mathf.Atan2(along.y, along.x) * Mathf.Rad2Deg);
+                    wires.Add((sr, p, color));
+                }
+            }
+        }
+
+        // Sections behind the player's checkpoints are shaded, and the checkpoint the player starts from is lit like the start.
+        void RefreshSections()
+        {
+            foreach (var shade in closedShades) if (shade) Destroy(shade);
+            closedShades.Clear();
+            if (layout == null) return;
+            var closed = game.Session.World.ClosedSection;
+            var color = palette.background;
+            color.a = 0.65f;
+            for (int y = 0; y < layout.Height; y++)
+                for (int x = 0; x < layout.Width;)
+                {
+                    if (!Shaded(x, y, closed)) { x++; continue; }
+                    int from = x;
+                    while (x < layout.Width && Shaded(x, y, closed)) x++;   // one quad per run of shaded cells in a row
+                    var shade = WhiteQuad("Closed", new Vector3((from + x) * 0.5f, -(y + 0.5f), 0f), new Vector3(x - from, 1f, 1f), 13);
+                    shade.color = color;
+                    closedShades.Add(shade.gameObject);
+                }
+            foreach (var (renderer, checkpoint) in checkpointViews)
+                if (renderer) renderer.color = checkpoint == game.Session.CurrentCheckpoint ? palette.startMarker : palette.rewind;
+        }
+
+        // A floor is shaded when its section is closed; a wall only when every floor around it is.
+        bool Shaded(int x, int y, bool[] closed)
+        {
+            var c = new Vector2Int(x, y);
+            if (!layout.IsWall(c))
+            {
+                int s = layout.SectionOf(c);
+                return s >= 0 && closed[s];
+            }
+            bool any = false;
+            for (int dy = -1; dy <= 1; dy++)
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    var n = new Vector2Int(x + dx, y + dy);
+                    if (!layout.InBounds(n) || layout.IsWall(n)) continue;
+                    int s = layout.SectionOf(n);
+                    if (s < 0 || !closed[s]) return false;
+                    any = true;
+                }
+            return any;
+        }
+
+        SpriteRenderer WhiteQuad(string name, Vector3 localPosition, Vector3 localScale, int order)
+        {
+            if (!whiteSprite)
+            {
+                var tex = Texture2D.whiteTexture;
+                whiteSprite = Sprite.Create(tex, new Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), tex.width);
+            }
+            var go = new GameObject(name);
+            go.transform.SetParent(tileRoot, false);
+            go.transform.localPosition = localPosition;
+            go.transform.localScale = localScale;
             var sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = sprite;
-            sr.sortingOrder = terrain.SortingOrder;
-            if (terrainMaterial) sr.sharedMaterial = terrainMaterial;
+            sr.sprite = whiteSprite;
+            sr.sortingOrder = order;
+            var template = prefabs.floor ? prefabs.floor.GetComponentInChildren<SpriteRenderer>(true) : null;
+            if (template) sr.sharedMaterial = template.sharedMaterial;
+            return sr;
         }
 
         Material TerrainMaterial(TerrainTileset terrain)
@@ -258,6 +422,11 @@ namespace Rewind.Gameplay
             markers.Clear();
             trailDots.Clear();
             chevrons.Clear();
+            wires.Clear();
+            checkpointViews.Clear();
+            closedShades.Clear();
+            if (floorMap) floorMap.ClearAllTiles();
+            if (wallMap) wallMap.ClearAllTiles();
             playerView = null;
             layout = null;
             if (rewindOverlay) rewindOverlay.SetVisible(false);
@@ -396,12 +565,18 @@ namespace Rewind.Gameplay
             MarkPressed(playerView);
             foreach (var crate in crateViews) MarkPressed(crate ? crate.gameObject : null);
             for (int i = 0; i < plates.Count && i < platePressed.Length; i++) plates[i].SetPressed(platePressed[i]);
+            foreach (var wire in wires)
+            {
+                var c = wire.color;
+                c.a = platePressed[wire.plate] ? wireLitAlpha : wireIdleAlpha;
+                wire.renderer.color = c;
+            }
 
             for (int i = 0; i < doors.Count && i < doorOpen.Length; i++)
             {
-                var onChannel = layout.PlatesOnChannel(layout.Doors[i].Channel);
+                var linked = layout.DoorPlates(i);
                 var pips = doorPips[i];
-                for (int k = 0; k < pips.Length; k++) pips[k] = platePressed[onChannel[k]];
+                for (int k = 0; k < pips.Length; k++) pips[k] = platePressed[linked[k]];
                 doors[i].SetState(doorOpen[i], pips);
             }
             // Holes come and go (floor crumbles, crates fill them, the rewind undoes both), so their tiles are picked

@@ -92,7 +92,7 @@ namespace Rewind.Core
             var target = body.Cell + d;
             var a = new Attempt { Target = target };
             var t = layout.TileAt(target);
-            if (t.Kind == TileKind.Wall) return Blocked(a, Block.Wall);
+            if (t.Kind == TileKind.Wall || IsClosed(layout, world, target)) return Blocked(a, Block.Wall);
             if (t.Kind == TileKind.Door && !DoorOpenAt(layout, world, target)) return Blocked(a, Block.Door);
             if (world.Ground[layout.Index(target)] == GroundState.Hole) return Blocked(a, Block.Pit);
 
@@ -101,7 +101,9 @@ namespace Rewind.Core
             {
                 var dest = target + d;
                 var dt = layout.TileAt(dest);
-                if (dt.Kind == TileKind.Wall || dt.Kind == TileKind.Exit) return Blocked(a, Block.CrateWall);
+                // crates stay off exits and checkpoints, so neither can ever be blocked
+                if (dt.Kind == TileKind.Wall || dt.Kind == TileKind.Exit || dt.Kind == TileKind.Checkpoint || IsClosed(layout, world, dest))
+                    return Blocked(a, Block.CrateWall);
                 if (dt.Kind == TileKind.Door && !DoorOpenAt(layout, world, dest)) return Blocked(a, Block.CrateDoor);
                 if (world.Ground[layout.Index(dest)] != GroundState.Hole)
                 {
@@ -163,6 +165,12 @@ namespace Rewind.Core
             return ParadoxReason.Unknown;
         }
 
+        static bool IsClosed(LevelLayout layout, WorldState world, Vector2Int cell)
+        {
+            int s = layout.SectionOf(cell);
+            return s >= 0 && world.ClosedSection[s];
+        }
+
         static bool DoorOpenAt(LevelLayout layout, WorldState world, Vector2Int cell)
         {
             int i = layout.DoorIndexAt(cell);
@@ -193,17 +201,20 @@ namespace Rewind.Core
             }
         }
 
-        /// <summary>A door counts as held only while every plate of its channel is pressed. Doors stay open while occupied.</summary>
+        /// <summary>A door counts as held only while every plate linked to it is pressed. Doors stay open while occupied.</summary>
         public static void UpdateDoors(LevelLayout layout, WorldState world)
         {
-            Span<int> pressed = stackalloc int[LevelLayout.MaxChannels + 1];
-            foreach (var p in layout.Plates)
-                if (world.CrateAt(p.Cell) != null || world.AnyBodyAt(p.Cell)) pressed[p.Channel]++;
+            var plates = layout.Plates;
+            Span<bool> pressed = plates.Count <= 256 ? stackalloc bool[plates.Count] : new bool[plates.Count];
+            for (int i = 0; i < plates.Count; i++)
+                pressed[i] = world.CrateAt(plates[i].Cell) != null || world.AnyBodyAt(plates[i].Cell);
 
             for (int i = 0; i < layout.Doors.Count; i++)
             {
                 var d = layout.Doors[i];
-                bool held = pressed[d.Channel] == layout.PlateCount(d.Channel);
+                var linked = layout.DoorPlates(i);
+                bool held = true;   // a door with no plates counts as held, as a colour with no plates always did
+                for (int k = 0; k < linked.Count; k++) held &= pressed[linked[k]];
                 bool wantOpen = held != d.Inverse;
                 bool jammed = world.DoorOpen[i] && (world.AnyBodyAt(d.Cell) || world.CrateAt(d.Cell) != null);
                 world.DoorOpen[i] = wantOpen || jammed;

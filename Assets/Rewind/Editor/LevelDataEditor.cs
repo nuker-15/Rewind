@@ -36,7 +36,7 @@ namespace Rewind.EditorTools
             if (GUILayout.Button("Open in Level Editor")) LevelEditorWindow.OpenWith(level);
             if (GUILayout.Button("Validate level"))
             {
-                validationOk = LevelValidator.Validate(level, LevelValidator.FindLoopTicks(), true, out validation);
+                validationOk = LevelValidator.Validate(level, LevelValidator.FindLoopTicks(level), true, out validation);
             }
             if (!string.IsNullOrEmpty(validation))
                 EditorGUILayout.HelpBox(validation, validationOk ? MessageType.Info : MessageType.Error);
@@ -57,10 +57,12 @@ namespace Rewind.EditorTools
 
         static readonly Color Amber = new Color(1f, 0.71f, 0.28f), Cyan = new Color(0.28f, 0.85f, 1f), Orange = new Color(1f, 0.54f, 0.36f);
 
-        static Color Channel(char c) => c switch { '1' or 'a' or 'A' => Amber, '2' or 'b' or 'B' => Cyan, _ => Orange };
+        static Color Channel(char c) => c switch { '2' or 'b' or 'B' => Cyan, '3' or 'c' or 'C' => Orange, _ => Amber };
 
-        internal static Color CellColor(char c, int x, int y)
+        /// <summary>The preview colour of a map tile. Plates and doors use <paramref name="group"/> when given, else their colour number.</summary>
+        internal static Color CellColor(char c, int x, int y, Color? group = null)
         {
+            var g = group ?? Channel(c);
             switch (c)
             {
                 case '#': return new Color(0.16f, 0.18f, 0.36f);
@@ -69,9 +71,10 @@ namespace Rewind.EditorTools
                 case 'o': return new Color(0.79f, 0.55f, 0.31f);
                 case '~': return new Color(0.49f, 0.51f, 0.7f);
                 case '_': return new Color(0.02f, 0.02f, 0.05f);
-                case '1': case '2': case '3': return Color.Lerp(Channel(c), Color.black, 0.45f);
-                case 'a': case 'b': case 'c': return Channel(c);
-                case 'A': case 'B': case 'C': return (x + y) % 2 == 0 ? Channel(c) : Color.Lerp(Channel(c), Color.black, 0.6f);
+                case '1': case '2': case '3': case 'p': return Color.Lerp(g, Color.black, 0.45f);
+                case 'a': case 'b': case 'c': case 'd': return g;
+                case 'A': case 'B': case 'C': case 'D': return (x + y) % 2 == 0 ? g : Color.Lerp(g, Color.black, 0.6f);
+                case '+': return Cyan;
                 default: return (x + y) % 2 == 0 ? new Color(0.07f, 0.08f, 0.17f) : new Color(0.08f, 0.09f, 0.19f);
             }
         }

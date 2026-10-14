@@ -49,8 +49,8 @@ namespace Rewind.Gameplay
             else if (r.DoorsClosed) Play(library.doorClose);
 
             var config = game.Config;
-            int tick = r.Tick + 1;
-            if (tick >= config.LoopTicks - config.WarningTicks && tick < config.LoopTicks && tick % config.TicksPerSecond == 0)
+            int tick = r.Tick + 1, loopTicks = game.Session.LoopTicks;
+            if (tick >= loopTicks - config.WarningTicks && tick < loopTicks && tick % config.TicksPerSecond == 0)
                 Play(library.warning, 0.7f);
         }
 

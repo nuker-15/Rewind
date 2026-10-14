@@ -8,7 +8,7 @@ namespace Rewind.Data
     {
         [Header("Time loop")]
         [SerializeField, Min(0.02f), Tooltip("Seconds per grid step.")] float tickSeconds = 0.125f;
-        [SerializeField, Min(1f), Tooltip("Length of every loop in seconds.")] float loopSeconds = 10f;
+        [SerializeField, Min(1f), Tooltip("Length of a loop in seconds, for levels that do not set their own.")] float loopSeconds = 10f;
 
         [Header("Input")]
         [SerializeField, Min(1), Tooltip("Ticks a direction must be held before it starts repeating.")] int repeatDelayTicks = 2;
@@ -23,8 +23,10 @@ namespace Rewind.Data
         [SerializeField, Min(0f), Tooltip("Seconds left in a loop when the warning beeps start.")] float warningSeconds = 3f;
 
         public float TickSeconds => tickSeconds;
+        /// <summary>The default loop length, used by levels that do not set their own.</summary>
         public float LoopSeconds => loopSeconds;
-        public int LoopTicks => Mathf.Max(1, Mathf.RoundToInt(loopSeconds / tickSeconds));
+        /// <summary>Ticks in a loop of the given length; 0 or less means the default length.</summary>
+        public int LoopTicksFor(float seconds) => Mathf.Max(1, Mathf.RoundToInt((seconds > 0f ? seconds : loopSeconds) / tickSeconds));
         public int TicksPerSecond => Mathf.Max(1, Mathf.RoundToInt(1f / tickSeconds));
         public int RepeatDelayTicks => repeatDelayTicks;
         public int InputQueueLimit => inputQueueLimit;

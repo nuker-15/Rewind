@@ -41,11 +41,16 @@ namespace Rewind.Gameplay
         public event Action<float> RewindStarted;
         public event Action RewindFinished;
         public event Action<SolveResult> Solved;
+        /// <summary>The player reached a checkpoint: the section number just cleared (1 and up), its loops and its par.</summary>
+        public event Action<int, int, int> SectionCleared;
+        /// <summary>The player moved on to another section, or went back to one. Closed sections may have changed.</summary>
+        public event Action SectionChanged;
         public event Action<bool> PausedChanged;
 
         readonly List<(int id, Vector2Int dir)> held = new List<(int, Vector2Int)>();
         readonly Queue<Vector2Int> queued = new Queue<Vector2Int>();
         int holdTicks;
+        int sectionsShown;      // finished sections as of the last SectionChanged
         float accumulator;
         float stepAge;
         float rewindPos;
@@ -56,6 +61,8 @@ namespace Rewind.Gameplay
         public GameConfig Config => config;
         public LevelCatalog Catalog => catalog;
         public LoopSession Session { get; private set; }
+        /// <summary>Set by the camera while it moves between rooms or zooms: the loop's clock does not run meanwhile.</summary>
+        public bool ClockHeld { get; set; }
         public LevelData CurrentLevel { get; private set; }
         public int LevelIndex { get; private set; } = -1;
         public bool HasLevel => Session != null;
@@ -101,8 +108,13 @@ namespace Rewind.Gameplay
 
         public bool CanEndLoop => Session != null && Phase == LoopPhase.Playing && Session.Tick > 0;
         public bool CanRetry => Session != null && (Phase == LoopPhase.Playing || Phase == LoopPhase.Solved);
-        public bool CanErase => Session != null && Session.Echoes.Count > 0 && Phase != LoopPhase.Rewinding;
-        public bool CanRestart => Session != null && Phase != LoopPhase.Rewinding && (Session.Echoes.Count > 0 || Phase != LoopPhase.Ready);
+        public bool CanErase => Session != null && Session.CanRemoveEcho && Phase != LoopPhase.Rewinding;
+        public bool CanRestart => Session != null && Phase != LoopPhase.Rewinding && (Session.Echoes.Count > 0 || Session.SectionsFinished > 0 || Phase != LoopPhase.Ready);
+
+        /// <summary>Par of a section, by the checkpoint it starts at (-1 for the first section).</summary>
+        public int ParFor(int checkpoint) => checkpoint < 0 ? CurrentLevel.Par : Session.Layout.Checkpoints[checkpoint].Par;
+        /// <summary>Par of the section the player is in.</summary>
+        public int SectionPar => Session == null ? 0 : ParFor(Session.CurrentCheckpoint);
         public bool HasNextLevel => catalog && LevelIndex >= 0 && LevelIndex < catalog.Count - 1;
         public bool AcceptsMoves => Session != null && !IsPaused && !InputLocked && (Phase == LoopPhase.Ready || Phase == LoopPhase.Playing);
 
@@ -141,7 +153,8 @@ namespace Rewind.Gameplay
             }
             CurrentLevel = level;
             LevelIndex = index;
-            Session = new LoopSession(layout, config.LoopTicks);
+            Session = new LoopSession(layout, config.LoopTicksFor(level.LoopSeconds), config.LoopTicksFor);
+            sectionsShown = 0;
             ResetTiming();
             SetPaused(false);
             LevelLoaded?.Invoke(CurrentLevel, index);
@@ -236,6 +249,7 @@ namespace Rewind.Gameplay
             if (Session.Phase == LoopPhase.Playing)
             {
                 stepAge += dt;
+                if (ClockHeld) return;   // the camera is moving to another room: time stands still for everyone
                 accumulator += dt;
                 while (accumulator >= config.TickSeconds && Session.Phase == LoopPhase.Playing)
                 {
@@ -257,11 +271,20 @@ namespace Rewind.Gameplay
             stepAge = 0f;
             Ticked?.Invoke(report);
             foreach (var p in report.Paradoxes) ParadoxOccurred?.Invoke(p);
-            if (Session.Phase == LoopPhase.Solved)
+            if (report.ReachedCheckpoint)
+            {
+                // the session already waits at the checkpoint in a fresh section; a held key must be pressed again to start
+                ResetTiming();
+                int last = Session.SectionsFinished - 1;
+                SectionCleared?.Invoke(Session.SectionsFinished, Session.FinishedLoops(last), ParFor(Session.FinishedCheckpoint(last)));
+                NotifySection();
+                LoopReady?.Invoke(Session.LoopsUsed);
+            }
+            else if (Session.Phase == LoopPhase.Solved)
             {
                 ClearHeldInput();
                 bool newBest = !IsCustomLevel && PlayerProgress.Record(CurrentLevel, Session.LoopsUsed);
-                Solved?.Invoke(new SolveResult(Session.LoopsUsed, CurrentLevel.Par, newBest));
+                Solved?.Invoke(new SolveResult(Session.LoopsUsed, CurrentLevel.TotalPar, newBest));
             }
         }
 
@@ -320,7 +343,15 @@ namespace Rewind.Gameplay
         {
             Session.StartLoop();
             ResetTiming();
+            NotifySection();   // erasing can go back a section, restarting back to the first
             LoopReady?.Invoke(Session.LoopsUsed);
+        }
+
+        void NotifySection()
+        {
+            if (Session.SectionsFinished == sectionsShown) return;
+            sectionsShown = Session.SectionsFinished;
+            SectionChanged?.Invoke();
         }
 
         void ResetTiming()

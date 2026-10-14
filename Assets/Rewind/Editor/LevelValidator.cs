@@ -18,26 +18,30 @@ namespace Rewind.EditorTools
         [MenuItem("Rewind/Validate All Levels", priority = 20)]
         public static void ValidateAll()
         {
-            int loopTicks = FindLoopTicks();
             int failures = 0, count = 0;
             foreach (var guid in AssetDatabase.FindAssets("t:LevelData"))
             {
                 var level = AssetDatabase.LoadAssetAtPath<LevelData>(AssetDatabase.GUIDToAssetPath(guid));
                 if (!level) continue;
                 count++;
-                bool ok = Validate(level, loopTicks, true, out var report);
+                bool ok = Validate(level, FindLoopTicks(level), true, out var report);
                 if (ok) Debug.Log($"[Rewind] {level.name}: OK. {report}", level);
                 else { failures++; Debug.LogError($"[Rewind] {level.name}: {report}", level); }
             }
             Debug.Log($"[Rewind] Validated {count} levels, {failures} with problems.");
         }
 
-        public static int FindLoopTicks()
+        /// <summary>Ticks in one loop of this level, from its own loop length or the game config's default.</summary>
+        public static int FindLoopTicks(LevelData level)
+        {
+            var config = FindConfig();
+            return config ? config.LoopTicksFor(level ? level.LoopSeconds : 0f) : 80;
+        }
+
+        public static GameConfig FindConfig()
         {
             var guids = AssetDatabase.FindAssets("t:GameConfig");
-            if (guids.Length == 0) return 80;
-            var config = AssetDatabase.LoadAssetAtPath<GameConfig>(AssetDatabase.GUIDToAssetPath(guids[0]));
-            return config ? config.LoopTicks : 80;
+            return guids.Length == 0 ? null : AssetDatabase.LoadAssetAtPath<GameConfig>(AssetDatabase.GUIDToAssetPath(guids[0]));
         }
 
         public static bool Validate(LevelData level, int loopTicks, bool searchOneLoop, out string report)
@@ -58,9 +62,10 @@ namespace Rewind.EditorTools
             }
             else
             {
-                var result = Solver.Play(layout, level.ReferenceSolution, loopTicks);
+                var config = FindConfig();
+                var result = Solver.Play(layout, level.ReferenceSolution, loopTicks, config ? config.LoopTicksFor : (Func<float, int>)null);
                 if (!result.Solved) { ok = false; sb.Append("Reference solution no longer reaches the exit. "); }
-                else if (result.LoopsUsed != level.Par) { ok = false; sb.Append($"Reference solution takes {result.LoopsUsed} loops but par is {level.Par}. "); }
+                else if (result.LoopsUsed != level.TotalPar) { ok = false; sb.Append($"Reference solution takes {result.LoopsUsed} loops but par is {level.TotalPar}. "); }
                 else sb.Append($"Reference solution solves it in {result.LoopsUsed} loops. ");
                 if (result.Paradoxes.Count > 0)
                 {

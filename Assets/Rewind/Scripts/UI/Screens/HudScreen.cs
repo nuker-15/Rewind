@@ -41,6 +41,8 @@ namespace Rewind.UI
         [SerializeField] GameObject keyHints;
         [SerializeField] TouchControls touchControls;
 
+        RoomMap roomMap;
+
         void Awake()
         {
             // status (REC/READY icon + label) and tape (number + name) are no longer shown
@@ -58,21 +60,35 @@ namespace Rewind.UI
         {
             if (toast) toast.Hide();
             if (Game) Game.ParadoxOccurred += OnParadox;
+            if (Game) Game.SectionCleared += OnSectionCleared;
+            if (!roomMap && Game) roomMap = RoomMap.Build((RectTransform)transform, Game, palette);
         }
 
         protected override void OnClosed()
         {
             if (Game) Game.ParadoxOccurred -= OnParadox;
+            if (Game) Game.SectionCleared -= OnSectionCleared;
         }
 
         void OnDestroy()
         {
             if (Game) Game.ParadoxOccurred -= OnParadox;
+            if (Game) Game.SectionCleared -= OnSectionCleared;
+        }
+
+        void OnSectionCleared(int section, int loops, int par)
+        {
+            if (toast) toast.Show($"SECTION {section} CLEAR", $"{loops} LOOP{(loops == 1 ? "" : "S")}   |   PAR {par}", loops <= par ? palette.exit : palette.rewind);
         }
 
         void OnParadox(ParadoxEvent p)
         {
-            if (toast) toast.Show($"ECHO {p.EchoIndex + 1} NEVER EXISTED", ParadoxText.Describe(p.Reason), palette.paradox);
+            // the camera only shows one room, so say when it happened somewhere the player cannot see
+            var game = Game;
+            var rooms = game.CurrentLevel.RoomsFor(game.Session.Layout);
+            var player = game.Session.World.Player.Cell;
+            string where = rooms.Exists(r => r.Contains(p.Cell) && r.Contains(player)) ? "" : " IN ANOTHER ROOM";
+            if (toast) toast.Show($"ECHO {p.EchoIndex + 1} NEVER EXISTED{where}", ParadoxText.Describe(p.Reason), palette.paradox);
         }
 
         protected override void OnTick()
@@ -81,14 +97,15 @@ namespace Rewind.UI
             if (!game || !game.HasLevel) return;
             var phase = game.Phase;
 
-            var level = game.CurrentLevel;
-            if (parLabel) parLabel.text = $"PAR {level.Par}";
+            if (parLabel) parLabel.text = $"PAR {game.SectionPar}";
 
-            float seconds = Mathf.Min(game.Config.LoopSeconds, game.ViewSeconds);
+            float loopSeconds = game.Session.LoopTicks * game.Config.TickSeconds;
+            float seconds = Mathf.Min(loopSeconds, game.ViewSeconds);
             if (timeLabel)
             {
-                timeLabel.text = $"0:{seconds:00.0}";
-                bool late = phase == LoopPhase.Playing && seconds > game.Config.LoopSeconds - 3f;
+                int tenths = Mathf.FloorToInt(seconds * 10f);   // whole tenths, so 59.96 never shows as 0:60.0
+                timeLabel.text = $"{tenths / 600}:{tenths / 10 % 60:00}.{tenths % 10}";
+                bool late = phase == LoopPhase.Playing && seconds > loopSeconds - 3f;
                 timeLabel.color = late ? palette.record : textColor;
             }
 

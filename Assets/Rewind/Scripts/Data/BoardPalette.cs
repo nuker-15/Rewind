@@ -31,14 +31,14 @@ namespace Rewind.Data
         public Color pipLit = Hex("EBE9F8");
         public Color pipDark = Hex("090A14");
 
-        [Header("Plate and door channels (1, 2, 3)")]
-        public Color[] channels = { Hex("FFB547"), Hex("48D8FF"), Hex("FF8A5C") };
+        [Header("Plate and door groups, in reading order (repeats when there are more groups)")]
+        public Color[] channels = { Hex("FFB547"), Hex("48D8FF"), Hex("FF8A5C"), Hex("B9E769"), Hex("FF5C8A"), Hex("6C8CFF") };
 
         [Header("Echoes, in recording order")]
         public Color[] echoes = { Hex("B8A4FF"), Hex("7CF2C9"), Hex("FFC49C"), Hex("9FD2FF"), Hex("FF9FC4"), Hex("D9DCFF") };
 
         public Color Channel(int channel) =>
-            channels == null || channels.Length == 0 ? Color.white : channels[Mathf.Clamp(channel - 1, 0, channels.Length - 1)];
+            channels == null || channels.Length == 0 ? Color.white : channels[Mathf.Max(0, channel - 1) % channels.Length];
 
         public Color Echo(int index) =>
             echoes == null || echoes.Length == 0 ? Color.white : echoes[((index % echoes.Length) + echoes.Length) % echoes.Length];

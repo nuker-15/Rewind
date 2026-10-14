@@ -22,10 +22,10 @@ namespace Rewind.EditorTools
     {
         const string LevelFolder = "Assets/Rewind/Data/Levels";
         const string MainScene = "Assets/Rewind/Scenes/Main.unity";
-        const int MinSize = 3, MaxSize = 100;
+        const int MinSize = 3, MaxSize = 200;
         const float SideWidth = 320f;
 
-        enum Tool { Brush, Rectangle, Box, Fill }
+        enum Tool { Brush, Rectangle, Box, Fill, Link, Room }
 
         struct Entry
         {
@@ -38,12 +38,9 @@ namespace Rewind.EditorTools
         {
             new Entry('.', "Floor"), new Entry('#', "Wall"), new Entry('S', "Start"), new Entry('X', "Exit"), new Entry('o', "Crate"),
             new Entry('~', "Cracked floor (gives way once left)"), new Entry('_', "Hole (a crate pushed in fills it)"),
-            new Entry('1', "Plate, amber"), new Entry('2', "Plate, cyan"), new Entry('3', "Plate, orange"),
-            new Entry('a', "Door, amber (open while held)"), new Entry('b', "Door, cyan (open while held)"), new Entry('c', "Door, orange (open while held)"),
-            new Entry('A', "Door, amber (shut while held)"), new Entry('B', "Door, cyan (shut while held)"), new Entry('C', "Door, orange (shut while held)"),
+            new Entry('p', "Plate"), new Entry('d', "Door (open while its plates are held)"), new Entry('D', "Door (shut while its plates are held)"),
+            new Entry(LevelCheckpoints.Glyph, "Checkpoint (a new spawn and timer; the part behind it closes)"),
         };
-
-        static readonly string[] ChannelNames = { "", "amber", "cyan", "orange" };
 
         // serialized so the window survives a domain reload
         [SerializeField] LevelData level;
@@ -54,6 +51,12 @@ namespace Rewind.EditorTools
 
         SerializedObject so;
         char[][] grid;
+        string links = "";            // plate-to-door links for the grid, written with the map on Save
+        string checkpoints = "";      // checkpoint settings for the grid, likewise
+        string rooms = "";            // the rooms drawn on the grid, likewise
+        bool roomDragging;            // a Room tool drag is under way
+        Vector2Int? linkPlate;        // the plate the Link tool is connecting doors to
+        LevelLayout analyzed;         // the grid as last parsed, for group colours
         string lastMap;
         Tool tool = Tool.Brush;
         char glyph = '#';
@@ -113,6 +116,7 @@ namespace Rewind.EditorTools
             so = level ? new SerializedObject(level) : null;
             validation = solverNote = null;
             pathKey = null;
+            linkPlate = null;
             if (level) Load();
             else grid = null;
             Repaint();
@@ -133,9 +137,13 @@ namespace Rewind.EditorTools
                 for (int x = 0; x < w; x++)
                 {
                     char c = y < rows.Count && x < rows[y].Length ? rows[y][x] : '.';
-                    grid[y][x] = Palette.Any(p => p.Glyph == c) ? c : '.';
+                    grid[y][x] = Palette.Any(p => p.Glyph == c) || LevelLinks.ColourOf(c) > 0 ? c : '.';
                 }
             }
+            // older levels link plates and doors by colour: the grid shows them as p/d/D with links, saved with the next edit
+            links = LevelLinks.ConvertColourLinks(grid, level.Links);
+            checkpoints = level.Checkpoints;
+            rooms = level.Rooms;
             lastMap = level.Map;
             pathKey = null;
             Analyze();
@@ -148,6 +156,12 @@ namespace Rewind.EditorTools
             if (!level || grid == null) return;
             so.Update();
             so.FindProperty("map").stringValue = GridToMap();
+            links = LevelLinks.Clean(links, grid);   // drop links to plates or doors that were painted over
+            so.FindProperty("links").stringValue = links;
+            checkpoints = LevelCheckpoints.Clean(checkpoints, grid);
+            so.FindProperty("checkpoints").stringValue = checkpoints;
+            rooms = LevelRooms.Clean(rooms, W, H);
+            so.FindProperty("rooms").stringValue = rooms;
             so.ApplyModifiedProperties();
             AssetDatabase.SaveAssetIfDirty(level);
             lastMap = level.Map;
@@ -229,14 +243,14 @@ namespace Rewind.EditorTools
         void CopyCode()
         {
             Save();
-            GUIUtility.systemCopyBuffer = LevelCode.Encode(level.DisplayName, level.Par, level.Map);
+            GUIUtility.systemCopyBuffer = LevelCode.Encode(level.ToCustom());
             ShowNotification(new GUIContent("Level code copied"));
         }
 
         void ImportCode()
         {
             string text = GUIUtility.systemCopyBuffer;
-            if (!LevelCode.TryDecode(text, out string name, out int par, out string map, out string error))
+            if (!LevelCode.TryDecode(text, out var imported, out string error))
             {
                 EditorUtility.DisplayDialog("Import level code",
                     string.IsNullOrWhiteSpace(text)
@@ -244,8 +258,8 @@ namespace Rewind.EditorTools
                         : "The clipboard does not hold a level code:\n\n" + error, "OK");
                 return;
             }
-            SetLevel(CreateLevel(name, map, par));
-            ShowNotification(new GUIContent($"Imported \"{name}\""));
+            SetLevel(CreateLevel(imported));
+            ShowNotification(new GUIContent($"Imported \"{imported.name}\""));
         }
 
         // ---- Grid ---------------------------------------------------------------------------------------------
@@ -271,9 +285,11 @@ namespace Rewind.EditorTools
                     {
                         char c = grid[y][x];
                         var r = new Rect(x * cell, y * cell, cell - 1f, cell - 1f);
-                        EditorGUI.DrawRect(r, LevelDataEditor.CellColor(c, x, y));
+                        EditorGUI.DrawRect(r, LevelDataEditor.CellColor(c, x, y, GroupColor(c, x, y)));
                         if (cell >= 16f) DrawGlyph(r, c);
                     }
+                DrawRoomOutlines();
+                DrawLinks();
                 if (showPaths) DrawPaths(x0, y0, x1, y1);
                 if (hover.x >= 0 && hover.x < W && hover.y >= 0 && hover.y < H)
                 {
@@ -286,6 +302,45 @@ namespace Rewind.EditorTools
             GUI.EndScrollView();
         }
 
+        // plates and doors take the colour of their linked group, as in the game
+        Color? GroupColor(char c, int x, int y)
+        {
+            if (analyzed == null || !(LevelLinks.IsPlate(c) || LevelLinks.IsDoor(c))) return null;
+            boardPalette ??= FindPalette();
+            return boardPalette ? boardPalette.Channel(analyzed.TileAt(new Vector2Int(x, y)).Channel) : (Color?)null;
+        }
+
+        static BoardPalette FindPalette() =>
+            AssetDatabase.FindAssets("t:BoardPalette").Select(g => AssetDatabase.LoadAssetAtPath<BoardPalette>(AssetDatabase.GUIDToAssetPath(g))).FirstOrDefault();
+
+        // a line through each wall that rooms share, where the camera will cut
+        // an outline around each room, and around the one being drawn
+        void DrawRoomOutlines()
+        {
+            foreach (var r in LevelRooms.Parse(rooms))
+                Outline(new Rect(r.Cells.x * cell, r.Cells.y * cell, r.Cells.width * cell, r.Cells.height * cell), new Color(0.28f, 0.85f, 1f, 0.9f));
+            if (!roomDragging) return;
+            var min = Vector2Int.Min(strokeStart, strokeLast);
+            var size = Vector2Int.Max(strokeStart, strokeLast) - min + Vector2Int.one;
+            Outline(new Rect(min.x * cell, min.y * cell, size.x * cell, size.y * cell), new Color(1f, 0.71f, 0.28f, 1f));
+        }
+
+        void DrawLinks()
+        {
+            Vector3 Centre(Vector2Int c) => new Vector3((c.x + 0.5f) * cell, (c.y + 0.5f) * cell, 0f);
+            var old = Handles.color;
+            foreach (var (plate, door) in LevelLinks.Parse(links))
+            {
+                var color = GroupColor('p', plate.x, plate.y) ?? Color.white;
+                color.a = linkPlate == plate ? 0.95f : 0.55f;
+                Handles.color = color;
+                Handles.DrawAAPolyLine(Mathf.Max(2f, cell * 0.1f), Centre(plate), Centre(door));
+            }
+            Handles.color = old;
+            if (tool == Tool.Link && linkPlate is Vector2Int p)
+                Outline(new Rect(p.x * cell, p.y * cell, cell - 1f, cell - 1f), Color.white);
+        }
+
         void DrawGlyph(Rect r, char c)
         {
             string text = null;
@@ -293,14 +348,13 @@ namespace Rewind.EditorTools
             {
                 case 'S': text = "S"; break;
                 case 'X': text = "X"; break;
-                case 'o': case '~': case '1': case '2': case '3':
-                case 'a': case 'b': case 'c': case 'A': case 'B': case 'C':
+                case 'o': case '~': case 'p': case 'd': case 'D': case LevelCheckpoints.Glyph:
                     text = c.ToString();
                     break;
             }
             if (text == null) return;
             var old = GUI.contentColor;
-            bool darkText = c == 'S' || c == 'X' || c == 'o' || c == 'a' || c == 'b' || c == 'c';   // drawn on bright fills
+            bool darkText = c == 'S' || c == 'X' || c == 'o' || c == 'd';   // drawn on bright fills
             GUI.contentColor = darkText ? Color.black : Color.white;
             GUI.Label(r, text, cellStyle);
             GUI.contentColor = old;
@@ -320,6 +374,13 @@ namespace Rewind.EditorTools
             if (e.type == EventType.ScrollWheel && e.control && new Rect(gridScroll, area.size).Contains(e.mousePosition))
             {
                 cell = Mathf.Clamp(cell - e.delta.y * 2f, 8f, 64f);
+                e.Use();
+                return;
+            }
+
+            if (tool == Tool.Link && e.GetTypeForControl(id) == EventType.MouseDown && inside && (e.button == 0 || e.button == 1) && !e.alt)
+            {
+                LinkClick(new Vector2Int(cx, cy), e.button == 1);
                 e.Use();
                 return;
             }
@@ -352,6 +413,21 @@ namespace Rewind.EditorTools
             }
         }
 
+        /// <summary>Link tool: click a plate to pick it, then click doors to link or unlink them. Right click drops the plate.</summary>
+        void LinkClick(Vector2Int c, bool drop)
+        {
+            char g = grid[c.y][c.x];
+            if (drop || !(LevelLinks.IsPlate(g) || LevelLinks.IsDoor(g))) linkPlate = null;
+            else if (LevelLinks.IsPlate(g)) linkPlate = c;
+            else if (linkPlate.HasValue)
+            {
+                links = LevelLinks.Toggle(links, linkPlate.Value, c);
+                Save();
+            }
+            else ShowNotification(new GUIContent("Click a plate first, then its doors"));
+            Repaint();
+        }
+
         // ---- Painting ---------------------------------------------------------------------------------------
 
         char ActiveGlyph => erasing ? '.' : glyph;
@@ -362,6 +438,13 @@ namespace Rewind.EditorTools
             strokeStart = strokeLast = p;
             strokeChanged = false;
             strokeSnapshot = Snapshot();
+            if (tool == Tool.Room)
+            {
+                if (erase) RemoveRoom(p);
+                else roomDragging = true;
+                Repaint();
+                return;
+            }
             if (tool == Tool.Fill) { FloodFill(p, ActiveGlyph); return; }
             if (tool == Tool.Brush) SetCell(p.x, p.y, ActiveGlyph);
             else ApplyShape(p, p);
@@ -388,6 +471,12 @@ namespace Rewind.EditorTools
         void EndStroke()
         {
             strokeSnapshot = null;
+            if (roomDragging)
+            {
+                roomDragging = false;
+                AddRoom(strokeStart, strokeLast);
+                return;
+            }
             if (strokeChanged) Save();
         }
 
@@ -471,7 +560,35 @@ namespace Rewind.EditorTools
                 }
             }
             grid = n;
+            Vector2Int Shift(Vector2Int c) => new Vector2Int(c.x + left, c.y + top);
+            links = LevelLinks.Move(links, Shift);
+            checkpoints = LevelCheckpoints.Move(checkpoints, Shift);
+            rooms = LevelRooms.Move(rooms, Shift);
             Save();
+        }
+
+        void ApplyEdit((char[][] grid, Func<Vector2Int, Vector2Int> move) edit)
+        {
+            grid = edit.grid;
+            links = LevelLinks.Move(links, edit.move);
+            checkpoints = LevelCheckpoints.Move(checkpoints, edit.move);
+            rooms = LevelRooms.Move(rooms, edit.move);
+            Save();
+        }
+
+        // Room tool: a drag draws a room (carved out when drawn into solid wall); right click removes the room there.
+        void AddRoom(Vector2Int a, Vector2Int b)
+        {
+            var cells = new RectInt(Vector2Int.Min(a, b), Vector2Int.Max(a, b) - Vector2Int.Min(a, b) + Vector2Int.one);
+            string error = LevelRooms.TryAdd(grid, ref rooms, cells);
+            if (error != null) ShowNotification(new GUIContent(error));
+            else Save();
+        }
+
+        void RemoveRoom(Vector2Int cell)
+        {
+            if (LevelRooms.TryRemove(ref rooms, cell)) Save();
+            else ShowNotification(new GUIContent("There is no room here"));
         }
 
         void WallBorder()
@@ -489,13 +606,19 @@ namespace Rewind.EditorTools
             EditorGUILayout.LabelField("Level", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(so.FindProperty("displayName"), new GUIContent("Name"));
             EditorGUILayout.PropertyField(so.FindProperty("par"));
+            EditorGUILayout.PropertyField(so.FindProperty("loopSeconds"), new GUIContent("Loop seconds", "Seconds per loop. 0 uses the default from the game config."));
             EditorGUILayout.PropertyField(so.FindProperty("hint"));
+            DrawCheckpoints();
+            DrawRooms();
 
             EditorGUILayout.Space(6);
             EditorGUILayout.LabelField("Paint", EditorStyles.boldLabel);
-            tool = (Tool)GUILayout.Toolbar((int)tool, new[] { "Brush", "Rectangle", "Box", "Fill" });
+            tool = (Tool)GUILayout.Toolbar((int)tool, new[] { "Brush", "Rect", "Box", "Fill", "Link", "Room" });
             DrawPalette();
-            EditorGUILayout.LabelField($"Left click paints {Palette.First(p => p.Glyph == glyph).Name.ToLowerInvariant()}, right click erases.", EditorStyles.wordWrappedMiniLabel);
+            EditorGUILayout.LabelField(
+                tool == Tool.Link ? "Click a plate, then click doors to link or unlink them. A door changes while all its plates are held. Right click drops the plate."
+                : tool == Tool.Room ? "Drag to draw a room the camera frames on its own; drawn into solid wall it is carved out. Right click removes a room (its tiles stay)."
+                : $"Left click paints {Palette.First(p => p.Glyph == glyph).Name.ToLowerInvariant()}, right click erases.", EditorStyles.wordWrappedMiniLabel);
             cell = EditorGUILayout.Slider("Zoom", cell, 8f, 64f);
             showPaths = EditorGUILayout.ToggleLeft("Draw reference solution on the map", showPaths);
 
@@ -512,6 +635,60 @@ namespace Rewind.EditorTools
 
             EditorGUILayout.Space(6);
             DrawCatalog();
+        }
+
+        // each room and how the camera arrives in it
+        void DrawRooms()
+        {
+            var list = LevelRooms.Parse(rooms);
+            EditorGUILayout.LabelField(new GUIContent(list.Count == 0 ? "Rooms: none, the whole map is one" : "Rooms: camera",
+                "Draw rooms with the Room tool. Slide: the camera slides over and the clock waits. Cut: it jumps straight there."), EditorStyles.miniBoldLabel);
+            for (int i = 0; i < list.Count; i++)
+            {
+                var r = list[i].Cells;
+                using (new EditorGUILayout.HorizontalScope())
+                {
+                    GUILayout.Label($"{i + 1}  {r.x},{r.y}  {r.width} x {r.height}", GUILayout.Width(150));
+                    var t = (RoomTransition)EditorGUILayout.EnumPopup(list[i].Transition);
+                    if (t != list[i].Transition) { rooms = LevelRooms.SetTransition(rooms, i, t); Save(); }
+                    if (GUILayout.Button("x", GUILayout.Width(20)))
+                    {
+                        list.RemoveAt(i);
+                        rooms = LevelRooms.Format(list);
+                        Save();
+                        break;
+                    }
+                }
+            }
+        }
+
+        // each checkpoint's par and loop length; the start's are the level's Par and Loop seconds above
+        void DrawCheckpoints()
+        {
+            bool header = false;
+            for (int y = 0; y < H; y++)
+                for (int x = 0; x < W; x++)
+                {
+                    if (grid[y][x] != LevelCheckpoints.Glyph) continue;
+                    if (!header)
+                    {
+                        EditorGUILayout.LabelField(new GUIContent("Checkpoints: par, seconds", "Seconds per loop in the checkpoint's section; 0 uses the level's."), EditorStyles.miniBoldLabel);
+                        header = true;
+                    }
+                    var cell = new Vector2Int(x, y);
+                    var e = LevelCheckpoints.Get(checkpoints, cell);
+                    using (new EditorGUILayout.HorizontalScope())
+                    {
+                        GUILayout.Label($"{x},{y}", GUILayout.Width(60));
+                        int par = Mathf.Clamp(EditorGUILayout.IntField(e.Par), 1, 99);
+                        float seconds = Mathf.Clamp(EditorGUILayout.FloatField(e.Seconds), 0f, LevelData.MaxLoopSeconds);
+                        if (par != e.Par || !Mathf.Approximately(seconds, e.Seconds))
+                        {
+                            checkpoints = LevelCheckpoints.Set(checkpoints, new LevelCheckpoints.Entry(cell, par, seconds));
+                            Save();
+                        }
+                    }
+                }
         }
 
         void DrawPalette()
@@ -551,6 +728,14 @@ namespace Rewind.EditorTools
 
         void DrawResize()
         {
+            using (new EditorGUILayout.HorizontalScope())
+            {
+                GUILayout.Label("Size", GUILayout.Width(40));
+                int w = EditorGUILayout.DelayedIntField(W), h = EditorGUILayout.DelayedIntField(H);
+                if (w != W || h != H) ApplyEdit(MapEdit.Resize(grid, Mathf.Clamp(w, MinSize, MaxSize), Mathf.Clamp(h, MinSize, MaxSize)));
+            }
+            if (GUILayout.Button(new GUIContent("Trim", "Cut the solid wall around the level down to one layer, keeping every room whole.")))
+                ApplyEdit(MapEdit.Trim(grid, LevelRooms.Parse(rooms).Select(r => r.Cells)));
             using (new EditorGUILayout.HorizontalScope())
             {
                 GUILayout.Label("Rows", GUILayout.Width(40));
@@ -596,7 +781,7 @@ namespace Rewind.EditorTools
                 if (GUILayout.Button("Validate"))
                 {
                     so.ApplyModifiedProperties();
-                    validationOk = LevelValidator.Validate(level, LevelValidator.FindLoopTicks(), true, out validation);
+                    validationOk = LevelValidator.Validate(level, LevelValidator.FindLoopTicks(level), true, out validation);
                 }
                 if (GUILayout.Button("Set par from solution") && list.arraySize > 0) so.FindProperty("par").intValue = list.arraySize;
             }
@@ -611,7 +796,7 @@ namespace Rewind.EditorTools
             try { layout = level.BuildLayout(); }
             catch (FormatException e) { solverNote = "Map error: " + e.Message; return; }
 
-            int loopTicks = LevelValidator.FindLoopTicks();
+            int loopTicks = LevelValidator.FindLoopTicks(level);
             var earlier = new List<string>();
             for (int i = 0; i < list.arraySize - 1; i++) earlier.Add(list.GetArrayElementAtIndex(i).stringValue);
             var echoes = Solver.Record(layout, earlier, loopTicks);
@@ -660,19 +845,44 @@ namespace Rewind.EditorTools
         void Analyze()
         {
             checks.Clear();
+            analyzed = null;
             LevelLayout layout;
-            try { layout = LevelLayout.Parse(GridToMap()); }
+            try { layout = LevelLayout.Parse(GridToMap(), links, checkpoints); }
             catch (FormatException e) { checks.Add((MessageType.Error, e.Message)); return; }
+            analyzed = layout;
 
             checks.Add((MessageType.None, $"{layout.Plates.Count} plates, {layout.Doors.Count} doors, {layout.CrateStarts.Count} crates"));
-            for (int ch = 1; ch <= LevelLayout.MaxChannels; ch++)
+            var usedPlates = new HashSet<int>();
+            for (int d = 0; d < layout.Doors.Count; d++)
             {
-                int plates = layout.PlateCount(ch), doors = layout.Doors.Count(d => d.Channel == ch);
-                if (doors > 0 && plates == 0) checks.Add((MessageType.Warning, $"There are {ChannelNames[ch]} doors but no {ChannelNames[ch]} plate, so they never change."));
-                if (plates > 0 && doors == 0) checks.Add((MessageType.Warning, $"There are {ChannelNames[ch]} plates but no {ChannelNames[ch]} door for them to control."));
+                usedPlates.UnionWith(layout.DoorPlates(d));
+                var c = layout.Doors[d].Cell;
+                if (layout.DoorPlates(d).Count == 0) checks.Add((MessageType.Warning, $"The door at {c.x},{c.y} has no plate linked, so it never changes. Use the Link tool."));
             }
+            for (int p = 0; p < layout.Plates.Count; p++)
+                if (!usedPlates.Contains(p)) checks.Add((MessageType.Warning, $"The plate at {layout.Plates[p].Cell.x},{layout.Plates[p].Cell.y} is not linked to any door."));
+            if (layout.Checkpoints.Count > 0)
+                checks.Add((MessageType.None, $"{layout.SectionCount} sections, total par {layout.TotalPar(level.Par)}."));
+            for (int c = 0; c < layout.Checkpoints.Count; c++)
+                if (!layout.CheckpointsToExit.Contains(c))
+                    checks.Add((MessageType.Warning, $"The checkpoint at {layout.Checkpoints[c].Cell.x},{layout.Checkpoints[c].Cell.y} is not on the way to the exit, so taking it leads nowhere."));
             if (!ExitReachable(layout)) checks.Add((MessageType.Warning, "The exit cannot be reached from the start even with every door open."));
-            if (W * H > 700) checks.Add((MessageType.Info, "Large level: the board is scaled to fit the screen, and one loop is only " + LevelValidator.FindLoopTicks() + " moves long."));
+            var drawn = LevelRooms.For(rooms, W, H);
+            if (drawn.Count > 1)
+            {
+                checks.Add((MessageType.None, $"{drawn.Count} rooms. The camera shows one at a time."));
+                int outside = 0;
+                for (int y = 0; y < H; y++)
+                    for (int x = 0; x < W; x++)
+                        if (grid[y][x] != '#' && !drawn.Exists(r => r.Contains(new Vector2Int(x, y)))) outside++;
+                if (outside > 0) checks.Add((MessageType.Warning, $"{outside} open tiles are in no room, so the camera keeps showing the last room while the player is there."));
+            }
+            foreach (var r in drawn)
+                if (r.Cells.width * r.Cells.height > 700)
+                {
+                    checks.Add((MessageType.Info, $"A {r.Cells.width} x {r.Cells.height} room: tiles get small on screen, and one loop is only " + LevelValidator.FindLoopTicks(level) + " moves long."));
+                    break;
+                }
         }
 
         static bool ExitReachable(LevelLayout layout)
@@ -706,7 +916,7 @@ namespace Rewind.EditorTools
             var list = so.FindProperty("referenceSolution");
             var loops = new List<string>();
             for (int i = 0; i < list.arraySize; i++) loops.Add(list.GetArrayElementAtIndex(i).stringValue);
-            string key = lastMap + "#" + string.Join("|", loops);
+            string key = lastMap + "#" + level.LoopSeconds + "#" + level.Links + "#" + level.Checkpoints + "#" + string.Join("|", loops);
             if (key == pathKey) return;
             pathKey = key;
             paths.Clear();
@@ -714,7 +924,8 @@ namespace Rewind.EditorTools
             try
             {
                 var layout = level.BuildLayout();
-                var session = new LoopSession(layout, LevelValidator.FindLoopTicks());
+                var config = LevelValidator.FindConfig();
+                var session = new LoopSession(layout, LevelValidator.FindLoopTicks(level), config ? config.LoopTicksFor : (Func<float, int>)null);
                 for (int k = 0; k < loops.Count; k++)
                 {
                     session.Begin();
@@ -728,6 +939,7 @@ namespace Rewind.EditorTools
                     paths.Add(path);
                     foreach (var p in session.Paradoxes) paradoxCells.Add(p.Cell);
                     if (session.Phase == LoopPhase.Solved) break;
+                    if (session.Phase == LoopPhase.Ready) continue;   // reached a checkpoint: the next script plays its section
                     session.CommitLoop();
                     session.StartLoop();
                 }
@@ -738,7 +950,7 @@ namespace Rewind.EditorTools
         void DrawPaths(int x0, int y0, int x1, int y1)
         {
             EnsurePaths();
-            boardPalette ??= AssetDatabase.FindAssets("t:BoardPalette").Select(g => AssetDatabase.LoadAssetAtPath<BoardPalette>(AssetDatabase.GUIDToAssetPath(g))).FirstOrDefault();
+            boardPalette ??= FindPalette();
             float s = Mathf.Max(3f, cell * 0.26f);
             for (int k = 0; k < paths.Count; k++)
             {
@@ -818,19 +1030,16 @@ namespace Rewind.EditorTools
                     sb.Append(border ? '#' : x == 1 && y == 1 ? 'S' : x == width - 2 && y == height - 2 ? 'X' : '.');
                 }
             }
-            return CreateLevel(displayName, sb.ToString(), 2);
+            return CreateLevel(new CustomLevel { name = displayName, par = 2, map = sb.ToString() });
         }
 
-        /// <summary>Creates a level asset from a text map and adds it to the catalog.</summary>
-        static LevelData CreateLevel(string displayName, string map, int par)
+        /// <summary>Creates a level asset from a level record (e.g. a decoded level code) and adds it to the catalog.</summary>
+        static LevelData CreateLevel(CustomLevel source)
         {
             var data = CreateInstance<LevelData>();
-            var so = new SerializedObject(data);
-            so.FindProperty("displayName").stringValue = displayName;
-            so.FindProperty("par").intValue = Mathf.Max(1, par);
-            so.FindProperty("map").stringValue = map;
-            so.ApplyModifiedPropertiesWithoutUndo();
-            string path = NextPath(displayName);
+            data.Configure(source);
+            string path = NextPath(data.DisplayName);
+            data.name = Path.GetFileNameWithoutExtension(path);   // Configure names it for runtime use; an asset is named after its file
             AssetDatabase.CreateAsset(data, path);
             var catalog = FindCatalog();
             if (catalog) CatalogAdd(catalog, data);

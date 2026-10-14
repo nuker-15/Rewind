@@ -12,6 +12,14 @@ namespace Rewind.Data
         public string name = "Untitled";
         public int par = 2;
         public string map;
+        /// <summary>Seconds per loop, or 0 for the game's default.</summary>
+        public float loopSeconds;
+        /// <summary>Which plates control which doors, see <see cref="Rewind.Core.LevelLinks"/>.</summary>
+        public string links = "";
+        /// <summary>The rooms the camera frames, see <see cref="Rewind.Core.LevelRooms"/>. Empty: the whole map is one room.</summary>
+        public string rooms = "";
+        /// <summary>Par and loop length of each checkpoint, see <see cref="Rewind.Core.LevelCheckpoints"/>.</summary>
+        public string checkpoints = "";
         /// <summary>Fewest loops this level has been solved in while testing, or 0 if never.</summary>
         public int bestLoops;
         public long updatedTicks;

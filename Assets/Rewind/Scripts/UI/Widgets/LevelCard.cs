@@ -42,12 +42,13 @@ namespace Rewind.UI
             onChosen = chosen;
             if (number) number.text = (index + 1).ToString("00");
             if (title) title.text = level.DisplayName.ToUpperInvariant();
-            if (parLabel) parLabel.text = $"PAR {level.Par}";
+            int par = level.TotalPar;
+            if (parLabel) parLabel.text = $"PAR {par}";
             int best = PlayerProgress.GetBest(level);
             if (bestLabel)
             {
                 if (best <= 0) { bestLabel.text = "UNPLAYED"; bestLabel.color = unplayed; }
-                else if (best <= level.Par) { bestLabel.text = $"BEST {best}"; bestLabel.color = bestAtPar; }
+                else if (best <= par) { bestLabel.text = $"BEST {best}"; bestLabel.color = bestAtPar; }
                 else { bestLabel.text = $"BEST {best}"; bestLabel.color = bestOverPar; }
             }
             SetSelected(false);

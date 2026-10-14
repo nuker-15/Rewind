@@ -27,15 +27,19 @@ namespace Rewind.Core
     /// </summary>
     public static class Solver
     {
-        public static PlaythroughResult Play(LevelLayout layout, IReadOnlyList<string> loops, int loopTicks)
+        /// <summary>
+        /// Plays the scripts one loop each. A loop that reaches a checkpoint ends there, and the next script is the first
+        /// loop of the checkpoint's section.
+        /// </summary>
+        public static PlaythroughResult Play(LevelLayout layout, IReadOnlyList<string> loops, int loopTicks, Func<float, int> ticksForSeconds = null)
         {
-            var session = new LoopSession(layout, loopTicks);
+            var session = new LoopSession(layout, loopTicks, ticksForSeconds);
             var paradoxes = new List<ParadoxEvent>();
             for (int k = 0; k < loops.Count; k++)
             {
-                PlayScript(session, loops[k]);
-                paradoxes.AddRange(session.Paradoxes);
+                PlayScript(session, loops[k], paradoxes);
                 if (session.Phase == LoopPhase.Solved) break;
+                if (session.Phase == LoopPhase.Ready) continue;   // reached a checkpoint: already waiting in the next section
                 if (k < loops.Count - 1)
                 {
                     session.CommitLoop();
@@ -63,13 +67,14 @@ namespace Rewind.Core
             return new List<EchoRecording>(session.Echoes);
         }
 
-        static void PlayScript(LoopSession session, string script)
+        // paradoxes are gathered tick by tick, as a loop that reaches a checkpoint starts the next one straight away
+        static void PlayScript(LoopSession session, string script, List<ParadoxEvent> paradoxes = null)
         {
             session.Begin();
             foreach (char c in script)
             {
                 if (session.Phase != LoopPhase.Playing || session.IsTimeUp) break;
-                session.Step(Dir.FromScriptChar(c));
+                paradoxes?.AddRange(session.Step(Dir.FromScriptChar(c)).Paradoxes);
             }
         }
 

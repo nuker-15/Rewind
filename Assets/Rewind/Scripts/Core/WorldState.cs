@@ -37,25 +37,23 @@ namespace Rewind.Core
         public readonly List<Crate> Crates;
         public readonly bool[] DoorOpen;
         public readonly GroundState[] Ground;
+        /// <summary>Sections behind the player's checkpoints. Nothing can move into them.</summary>
+        public readonly bool[] ClosedSection;
 
         public Body Player => Bodies[Bodies.Count - 1];
         public int EchoCount => Bodies.Count - 1;
 
-        WorldState(List<Body> bodies, List<Crate> crates, bool[] doorOpen, GroundState[] ground)
+        WorldState(List<Body> bodies, List<Crate> crates, bool[] doorOpen, GroundState[] ground, bool[] closedSection)
         {
             Bodies = bodies;
             Crates = crates;
             DoorOpen = doorOpen;
             Ground = ground;
+            ClosedSection = closedSection;
         }
 
         public static WorldState Create(LevelLayout layout, int echoCount)
         {
-            var bodies = new List<Body>(echoCount + 1);
-            for (int i = 0; i < echoCount; i++)
-                bodies.Add(new Body { Kind = BodyKind.Echo, EchoIndex = i, Cell = layout.Start, PrevCell = layout.Start });
-            bodies.Add(new Body { Kind = BodyKind.Player, EchoIndex = -1, Cell = layout.Start, PrevCell = layout.Start });
-
             var crates = new List<Crate>(layout.CrateStarts.Count);
             for (int i = 0; i < layout.CrateStarts.Count; i++)
                 crates.Add(new Crate { Id = i, Cell = layout.CrateStarts[i], PrevCell = layout.CrateStarts[i] });
@@ -63,7 +61,24 @@ namespace Rewind.Core
             var ground = new GroundState[layout.CellCount];
             for (int i = 0; i < ground.Length; i++) ground[i] = layout.InitialGround(i);
 
-            return new WorldState(bodies, crates, new bool[layout.Doors.Count], ground);
+            return new WorldState(Spawn(echoCount, layout.Start), crates, new bool[layout.Doors.Count], ground, new bool[layout.SectionCount]);
+        }
+
+        /// <summary>A copy of this world with fresh bodies: every echo and the player at <paramref name="start"/>.</summary>
+        public WorldState Respawn(int echoCount, Vector2Int start)
+        {
+            var crates = new List<Crate>(Crates.Count);
+            foreach (var c in Crates) crates.Add(c.Clone());
+            return new WorldState(Spawn(echoCount, start), crates, (bool[])DoorOpen.Clone(), (GroundState[])Ground.Clone(), (bool[])ClosedSection.Clone());
+        }
+
+        static List<Body> Spawn(int echoCount, Vector2Int start)
+        {
+            var bodies = new List<Body>(echoCount + 1);
+            for (int i = 0; i < echoCount; i++)
+                bodies.Add(new Body { Kind = BodyKind.Echo, EchoIndex = i, Cell = start, PrevCell = start });
+            bodies.Add(new Body { Kind = BodyKind.Player, EchoIndex = -1, Cell = start, PrevCell = start });
+            return bodies;
         }
 
         public WorldState Clone()
@@ -72,7 +87,7 @@ namespace Rewind.Core
             foreach (var b in Bodies) bodies.Add(b.Clone());
             var crates = new List<Crate>(Crates.Count);
             foreach (var c in Crates) crates.Add(c.Clone());
-            return new WorldState(bodies, crates, (bool[])DoorOpen.Clone(), (GroundState[])Ground.Clone());
+            return new WorldState(bodies, crates, (bool[])DoorOpen.Clone(), (GroundState[])Ground.Clone(), ClosedSection);   // closed sections never change mid-loop
         }
 
         public Crate CrateAt(Vector2Int cell)

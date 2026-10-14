@@ -13,6 +13,8 @@ namespace Rewind.Core
         public bool DoorsOpened;
         public bool DoorsClosed;
         public bool ReachedExit;
+        /// <summary>The player stepped onto a checkpoint: the session has moved on to its section and waits in Ready.</summary>
+        public bool ReachedCheckpoint;
         public readonly List<Vector2Int> Crumbled = new List<Vector2Int>();
         public readonly List<Vector2Int> Filled = new List<Vector2Int>();
         public readonly List<ParadoxEvent> Paradoxes = new List<ParadoxEvent>();
@@ -28,6 +30,7 @@ namespace Rewind.Core
             DoorsOpened = false;
             DoorsClosed = false;
             ReachedExit = false;
+            ReachedCheckpoint = false;
             Crumbled.Clear();
             Filled.Clear();
             Paradoxes.Clear();

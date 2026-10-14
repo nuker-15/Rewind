@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Rewind.Core
 {
-    public enum TileKind : byte { Floor, Wall, Plate, Door, Exit }
+    public enum TileKind : byte { Floor, Wall, Plate, Door, Exit, Checkpoint }
 
     /// <summary>What the floor of a cell is doing. Only cracked floor and holes ever change.</summary>
     public enum GroundState : byte { Solid, Cracked, Stepped, Hole, Filled }
@@ -12,7 +12,7 @@ namespace Rewind.Core
     public readonly struct Tile
     {
         public readonly TileKind Kind;
-        public readonly int Channel;   // plates and doors: which colour they belong to (1-3)
+        public readonly int Channel;   // plates and doors: the group of linked tiles they belong to, which sets their colour (1 and up)
         public readonly bool Inverse;  // doors: shut while their plates are held
 
         public Tile(TileKind kind, int channel = 0, bool inverse = false)
