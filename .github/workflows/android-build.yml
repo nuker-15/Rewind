@@ -1,0 +1,89 @@
+# Builds a debug-signed Android APK of Rewind with GameCI (https://game.ci) and uploads it as a run artifact.
+#
+# Needs three repository secrets (Settings > Secrets and variables > Actions):
+#   UNITY_LICENSE  - full contents of your Unity_lic.ulf file
+#                    Windows: C:\ProgramData\Unity\Unity_lic.ulf
+#                    macOS:   /Library/Application Support/Unity/Unity_lic.ulf
+#                    Linux:   ~/.local/share/unity3d/Unity/Unity_lic.ulf
+#   UNITY_EMAIL    - the email of your Unity account
+#   UNITY_PASSWORD - the password of your Unity account
+name: Android build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - android-version
+      - ccr-e0b73785-9g1abp
+    paths-ignore:
+      - "Marketing/**"
+      - "**/*.md"
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check Unity secrets
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        run: |
+          missing=""
+          [ -z "$UNITY_LICENSE" ] && missing="$missing UNITY_LICENSE"
+          [ -z "$UNITY_EMAIL" ] && missing="$missing UNITY_EMAIL"
+          [ -z "$UNITY_PASSWORD" ] && missing="$missing UNITY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing. Add them under Settings > Secrets and variables > Actions (see the top of this workflow file)."
+            exit 1
+          fi
+
+      # The Unity Android image is ~9 GB; the stock runner does not have room for it plus the build.
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: false
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: false
+          docker-images: true
+          swap-storage: false
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history: GameCI derives the version and versionCode from it
+
+      - name: Cache Library
+        uses: actions/cache@v4
+        with:
+          path: Library
+          key: Library-Android-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: |
+            Library-Android-
+
+      - name: Build
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: Android
+          buildName: Rewind
+          androidExportType: androidPackage
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rewind-Android-${{ github.sha }}
+          path: build/Android/*.apk
+          if-no-files-found: error
+          retention-days: 14
