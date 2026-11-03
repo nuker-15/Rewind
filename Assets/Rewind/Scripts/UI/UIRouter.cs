@@ -42,6 +42,9 @@ namespace Rewind.UI
 
         void Awake()
         {
+#if UNITY_ANDROID || UNITY_IOS
+            Application.targetFrameRate = 60;   // phones and tablets run at 30 unless told otherwise
+#endif
             if (!editor) editor = LevelEditorScreen.Build(this);
         }
 

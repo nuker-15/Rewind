@@ -53,6 +53,9 @@ namespace Rewind.UI
 
             if (soundButton) soundButton.onClick.AddListener(() => router.ToggleMute());
             if (fullscreenButton) fullscreenButton.onClick.AddListener(() => router.ToggleFullscreen());
+#if UNITY_ANDROID || UNITY_IOS
+            if (fullscreenButton) fullscreenButton.gameObject.SetActive(false);   // apps are always full screen there
+#endif
             if (pauseButton) pauseButton.onClick.AddListener(() => router.OpenPause());
         }
 
