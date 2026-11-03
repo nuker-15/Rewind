@@ -25,6 +25,10 @@ namespace Rewind.UI
         const int MinWidth = 5, MinHeight = 4, MaxWidth = 200, MaxHeight = 200, GrowStep = 10;
         const int NewWidth = 20, NewHeight = 11, UndoLimit = 80, RowsPerPage = 6;
         const float StatusSeconds = 4f, SaveDelay = 1f, MinViewSize = 3f;
+        const float MinLayoutWidth = 1850f;   // the widest panel row, in canvas units, plus margins
+
+        // the same test as the game's touch controls: WebGL reports a touchscreen on desktops too
+        static bool TouchScreenUi => Application.isMobilePlatform && Touchscreen.current != null;
 
         enum Tool { Brush, Rectangle, Fill, Link, Room }
 
@@ -59,6 +63,7 @@ namespace Rewind.UI
         int editing = -1;        // which section PAR and TIME change: -1 the start, else a checkpoint in reading order
         int pickedRoom = -1;     // the room whose camera setting the panel shows
         float saveAt = -1f;      // edits are written to disk a moment after the last one, not on every stroke
+        Vector2 fittedFor;       // the screen size the editor was last scaled for
 
         // painting
         bool stroking, erasing, strokeChanged, previewDirty, fitPending;
@@ -184,7 +189,7 @@ namespace Rewind.UI
             RuntimeUi.Size(rules, -1f, 48f);
             RuntimeUi.Button(rules, "<", 60f, 46f, () => ChangeEditing(-1));
             editingLabel = RuntimeUi.Label(rules, "Editing", "", 24f, RuntimeUi.Cyan, TextAlignmentOptions.Center);
-            RuntimeUi.Size(editingLabel, 240f, 48f);
+            RuntimeUi.Size(editingLabel, 200f, 48f);
             RuntimeUi.Button(rules, ">", 60f, 46f, () => ChangeEditing(1));
             RuntimeUi.Button(rules, "- TIME", 110f, 46f, () => ChangeTime(-1));
             timeLabel = RuntimeUi.Label(rules, "Time", "", 26f, RuntimeUi.Fg, TextAlignmentOptions.Center);
@@ -192,8 +197,9 @@ namespace Rewind.UI
             RuntimeUi.Button(rules, "+ TIME", 110f, 46f, () => ChangeTime(1));
             RuntimeUi.Flexible(rules);
             roomLabel = RuntimeUi.Label(rules, "RoomLabel", "", 24f, RuntimeUi.Muted, TextAlignmentOptions.MidlineRight);
-            RuntimeUi.Size(roomLabel, 300f, 48f);
-            RuntimeUi.Button(rules, "", 230f, 46f, ToggleTransition, out transitionLabel);
+            RuntimeUi.Size(roomLabel, 240f, 48f);
+            RuntimeUi.Button(rules, "", 200f, 46f, ToggleTransition, out transitionLabel);
+            RuntimeUi.Button(rules, "REMOVE ROOM", 190f, 46f, RemovePickedRoom);   // touch has no right click
             RuntimeUi.Button(rules, "-", 60f, 46f, () => ZoomView(1.25f));
             RuntimeUi.Button(rules, "FIT", 90f, 46f, FitView);
             RuntimeUi.Button(rules, "+", 60f, 46f, () => ZoomView(0.8f));
@@ -298,6 +304,8 @@ namespace Rewind.UI
             if (!board) board = FindFirstObjectByType<BoardView>();
             if (!framer) framer = FindFirstObjectByType<BoardCameraFramer>();
             if (framer) framer.ManualControl = true;   // the editor pans and zooms the camera itself
+            Screen.sleepTimeout = SleepTimeout.NeverSleep;   // a tablet must not dim while a level is being thought out
+            FitToScreen();
             ShowLevels(false);
             if (level == null) OpenLevel(CustomLevelStore.Get(CustomLevelStore.LastEditedId) ?? CreateLevel(NewWidth, NewHeight));
             else
@@ -325,6 +333,7 @@ namespace Rewind.UI
             Hide(checkpointMark);
             foreach (var line in roomLines) Hide(line);
             if (framer) framer.ManualControl = false;
+            Screen.sleepTimeout = SleepTimeout.SystemSetting;
             FlushSave();
         }
 
@@ -343,6 +352,23 @@ namespace Rewind.UI
         void OnApplicationFocus(bool focused)
         {
             if (!focused) FlushSave();
+        }
+
+        /// <summary>
+        /// The panels are laid out for a 16:9 screen. On narrower ones (4:3 and 16:10 tablets) the whole editor is scaled
+        /// down to fit, instead of its rows running off the sides.
+        /// </summary>
+        void FitToScreen()
+        {
+            var root = (RectTransform)transform;
+            var size = ((RectTransform)root.parent).rect.size;
+            if (size == fittedFor || size.x <= 0f) return;
+            fittedFor = size;
+            float s = Mathf.Min(1f, size.x / MinLayoutWidth);
+            root.anchorMin = root.anchorMax = new Vector2(0.5f, 0.5f);
+            root.anchoredPosition = Vector2.zero;
+            root.sizeDelta = size / s;
+            root.localScale = new Vector3(s, s, 1f);
         }
 
         /// <summary>Notes that the level changed; it is written to disk a moment after the last change.</summary>
@@ -379,6 +405,7 @@ namespace Rewind.UI
 
         protected override void OnTick()
         {
+            FitToScreen();   // a tablet can rotate between its two landscape sides, or change size in split screen
             if (grid == null) return;
             if (LevelsOpen) HideCursor();
             else
@@ -446,7 +473,8 @@ namespace Rewind.UI
             }
 
             bool inside = cell.x >= 0 && cell.y >= 0 && cell.x < W && cell.y < H;
-            if (!inside || OverUi(screen))
+            // a lifted finger leaves no hover cursor behind
+            if (!inside || OverUi(screen) || pointer is Touchscreen && !leftHeld)
             {
                 HideCursor();
                 return;
@@ -634,12 +662,28 @@ namespace Rewind.UI
             SetStatus("ROOM REMOVED. ITS TILES STAY.");
         }
 
+        void RemovePickedRoom()
+        {
+            var rooms = LevelRooms.Parse(level?.rooms);
+            if (pickedRoom < 0 || pickedRoom >= rooms.Count)
+            {
+                SetStatus("PICK A ROOM FIRST: TAP IT WITH THE ROOM TOOL.");
+                return;
+            }
+            Remember(MapText(grid));
+            rooms.RemoveAt(pickedRoom);
+            level.rooms = LevelRooms.Format(rooms);
+            pickedRoom = -1;
+            Commit();
+            SetStatus("ROOM REMOVED. ITS TILES STAY.");
+        }
+
         void ToggleTransition()
         {
             var rooms = LevelRooms.Parse(level?.rooms);
             if (pickedRoom < 0 || pickedRoom >= rooms.Count)
             {
-                SetStatus("PICK A ROOM FIRST: CLICK IT WITH THE ROOM TOOL.");
+                SetStatus("PICK A ROOM FIRST: TAP IT WITH THE ROOM TOOL.");
                 return;
             }
             var next = rooms[pickedRoom].Transition == RoomTransition.Slide ? RoomTransition.Cut : RoomTransition.Slide;
@@ -1283,19 +1327,24 @@ namespace Rewind.UI
         void RefreshHint()
         {
             if (!hintLabel) return;
-            const string view = "WHEEL OR PINCH ZOOMS   |   MIDDLE DRAG OR SPACE + DRAG PANS";
+            bool touch = TouchScreenUi;
+            string view = touch ? "PINCH TO ZOOM, DRAG WITH TWO FINGERS TO PAN" : "WHEEL OR PINCH ZOOMS   |   MIDDLE DRAG OR SPACE + DRAG PANS";
             if (tool == Tool.Link)
             {
-                hintLabel.text = "LINK: CLICK A PLATE, THEN CLICK DOORS TO LINK OR UNLINK THEM   |   RIGHT CLICK DROPS THE PLATE   |   " + view;
+                hintLabel.text = (touch ? "LINK: TAP A PLATE, THEN TAP DOORS TO LINK OR UNLINK THEM   |   TAP FLOOR TO DROP THE PLATE   |   "
+                    : "LINK: CLICK A PLATE, THEN CLICK DOORS TO LINK OR UNLINK THEM   |   RIGHT CLICK DROPS THE PLATE   |   ") + view;
                 return;
             }
             if (tool == Tool.Room)
             {
-                hintLabel.text = "ROOM: DRAG TO DRAW A ROOM (IN SOLID WALL IT IS CARVED OUT)   |   CLICK PICKS ONE   |   RIGHT CLICK REMOVES   |   " + view;
+                hintLabel.text = (touch ? "ROOM: DRAG TO DRAW A ROOM (IN SOLID WALL IT IS CARVED OUT)   |   TAP ONE TO PICK IT   |   "
+                    : "ROOM: DRAG TO DRAW A ROOM (IN SOLID WALL IT IS CARVED OUT)   |   CLICK PICKS ONE   |   RIGHT CLICK REMOVES   |   ") + view;
                 return;
             }
             string name = Swatches.First(s => s.Glyph == glyph).Name.ToUpperInvariant();
-            hintLabel.text = $"PAINTING: {name}   |   {ToolNames[(int)tool]}   |   RIGHT CLICK ERASES   |   CTRL+Z UNDOES   |   {view}";
+            hintLabel.text = touch
+                ? $"PAINTING: {name}   |   {ToolNames[(int)tool]}   |   PAINT WITH THE FLOOR TILE TO ERASE   |   {view}"
+                : $"PAINTING: {name}   |   {ToolNames[(int)tool]}   |   RIGHT CLICK ERASES   |   CTRL+Z UNDOES   |   {view}";
         }
 
         void RecolorSwatches()

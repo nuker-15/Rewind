@@ -37,6 +37,9 @@ namespace Rewind.UI
 #if UNITY_WEBGL && !UNITY_EDITOR
             if (quitButton) quitButton.gameObject.SetActive(false);
 #endif
+#if UNITY_ANDROID || UNITY_IOS
+            if (fullscreenButton) fullscreenButton.gameObject.SetActive(false);   // apps are always full screen there
+#endif
         }
 
         protected override void OnTick()
